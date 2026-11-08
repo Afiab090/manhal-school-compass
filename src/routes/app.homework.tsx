@@ -15,6 +15,16 @@ import { toast } from "sonner";
 
 import { EmptyState, PageHeader, Panel } from "@/components/school/bits";
 import { useMe } from "@/components/school/useMe";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +45,7 @@ import {
 import {
   deleteHomework,
   postHomework,
+  setActiveChild,
   toggleHomeworkDone,
 } from "@/lib/school/store";
 import type { Homework } from "@/lib/school/types";
@@ -49,6 +60,7 @@ function HomeworkPage() {
   const [activeTab, setActiveTab] = useState<"homework" | "notes">("homework");
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteHomeworkId, setDeleteHomeworkId] = useState<string | null>(null);
 
   // New Homework Form state
   const [formClassId, setFormClassId] = useState<string>(s.classes[0]?.id || "c3a");
@@ -62,21 +74,26 @@ function HomeworkPage() {
   );
   const [formKind, setFormKind] = useState<"homework" | "notes">("homework");
 
-  const st = me.role === "student" ? me.student : null;
+  const targetStudent =
+    me.role === "student"
+      ? me.student
+      : me.role === "parent"
+        ? me.activeChild
+        : null;
 
   // Filter items
   const items = useMemo(() => {
     return s.homework.filter((h) => {
       if (h.kind !== activeTab) return false;
-      if (me.role === "student") {
-        return h.classId === st?.classId;
+      if (targetStudent) {
+        return h.classId === targetStudent.classId;
       }
       if (selectedClassFilter !== "all") {
         return h.classId === selectedClassFilter;
       }
       return true;
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [s.homework, activeTab, me.role, st, selectedClassFilter]);
+  }, [s.homework, activeTab, targetStudent, selectedClassFilter]);
 
   const handlePost = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,10 +120,11 @@ function HomeworkPage() {
     setFormDescription("");
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("هل تريد حذف هذا العنصر؟")) {
-      deleteHomework(id);
+  const confirmDelete = () => {
+    if (deleteHomeworkId) {
+      deleteHomework(deleteHomeworkId);
       toast.success("تم الحذف بنجاح");
+      setDeleteHomeworkId(null);
     }
   };
 
@@ -131,6 +149,32 @@ function HomeworkPage() {
           )
         }
       />
+
+      {/* Parent Child Switcher */}
+      {me.role === "parent" && me.children && me.children.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card/90 p-3 shadow-card">
+          <span className="text-xs font-bold text-muted-foreground ml-2">واجبات ومذكرات الطالب:</span>
+          {me.children.map((child) => {
+            const isSelected = me.activeChild?.id === child.id;
+            const childCls = s.classes.find((c) => c.id === child.classId);
+            return (
+              <Button
+                key={child.id}
+                type="button"
+                variant={isSelected ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveChild(child.id)}
+                className={cn(
+                  "rounded-full text-xs font-bold transition-all",
+                  isSelected && "bg-navy text-gold shadow-sm",
+                )}
+              >
+                {child.name} ({childCls?.name ?? child.classId})
+              </Button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Tabs Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
@@ -157,7 +201,7 @@ function HomeworkPage() {
           </Button>
         </div>
 
-        {me.role !== "student" && (
+        {!targetStudent && (
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-muted-foreground">الفصل:</span>
             <select
@@ -188,7 +232,7 @@ function HomeworkPage() {
           {items.map((it) => {
             const teacher = s.teachers.find((t) => t.id === it.teacherId);
             const cls = s.classes.find((c) => c.id === it.classId);
-            const isCompleted = st ? s.completedHomework.includes(`${st.id}:${it.id}`) : false;
+            const isCompleted = targetStudent ? s.completedHomework.includes(`${targetStudent.id}:${it.id}`) : false;
             const diff = daysUntil(it.dueDate, new Date());
 
             return (
@@ -242,12 +286,12 @@ function HomeworkPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {st && it.kind === "homework" && (
+                    {targetStudent && it.kind === "homework" && (
                       <Button
                         size="sm"
                         variant={isCompleted ? "outline" : "default"}
                         onClick={() => {
-                          toggleHomeworkDone(st.id, it.id);
+                          toggleHomeworkDone(targetStudent.id, it.id);
                           toast.success(isCompleted ? "تم إلغاء حالة الإنجاز" : "أحسنت! تم إنجاز الواجب");
                         }}
                         className="gap-2 text-xs font-bold"
@@ -270,7 +314,7 @@ function HomeworkPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDelete(it.id)}
+                        onClick={() => setDeleteHomeworkId(it.id)}
                         className="h-8 text-xs text-destructive hover:bg-danger-soft hover:text-destructive"
                       >
                         <Trash2 className="h-3.5 w-3.5 me-1" />
@@ -375,6 +419,24 @@ function HomeworkPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Alert Dialog */}
+      <AlertDialog open={!!deleteHomeworkId} onOpenChange={(open) => !open && setDeleteHomeworkId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف العنصر</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من رغبتك في حذف هذا الواجب/المذكرة نهائياً؟ لن يتمكن الطلاب من الوصول إليه بعد الحذف.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              نعم، حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

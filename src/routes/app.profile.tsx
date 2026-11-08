@@ -114,6 +114,36 @@ function ProfilePage() {
           </div>
         )}
 
+        {me.role === "parent" && me.parent && (
+          <div className="grid gap-3 sm:grid-cols-2 text-sm">
+            <div className="rounded-xl border bg-muted/20 p-3">
+              <span className="text-xs text-muted-foreground block">الرقم الوطني / الهوية</span>
+              <span dir="ltr" className="font-mono font-bold text-foreground text-base">
+                {me.parent.nationalId}
+              </span>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-3">
+              <span className="text-xs text-muted-foreground block">رقم الهاتف المسجل</span>
+              <span dir="ltr" className="font-mono font-bold text-foreground text-base">
+                {me.parent.phone}
+              </span>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-3 sm:col-span-2">
+              <span className="text-xs text-muted-foreground block mb-1.5">الأبناء المسجلون في المدرسة ({me.children.length})</span>
+              <div className="flex flex-wrap gap-2">
+                {me.children.map((c) => {
+                  const cls = s.classes.find((x) => x.id === c.classId);
+                  return (
+                    <Badge key={c.id} variant="secondary" className="text-xs py-1 px-2.5 font-bold">
+                      {c.name} · {cls?.name}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {me.role === "teacher" && teacher && (
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
             <div className="rounded-xl border bg-muted/20 p-3">
@@ -169,8 +199,8 @@ function ProfilePage() {
           يمكنك الانتقال فوراً بين حسابات الطالب والمعلم والإدارة لاستعراض الصلاحيات المختلفة
         </p>
 
-        <div className="grid grid-cols-3 gap-2">
-          {(["student", "teacher", "admin"] as Role[]).map((r) => (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {(["student", "parent", "teacher", "admin"] as Role[]).map((r) => (
             <button
               key={r}
               type="button"
@@ -182,7 +212,7 @@ function ProfilePage() {
                   : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground",
               )}
             >
-              {r === "student" ? "حساب الطالب" : r === "teacher" ? "حساب المعلم" : "حساب الإدارة"}
+              {r === "student" ? "حساب الطالب" : r === "parent" ? "حساب ولي الأمر" : r === "teacher" ? "حساب المعلم" : "حساب الإدارة"}
             </button>
           ))}
         </div>

@@ -14,6 +14,16 @@ import { toast } from "sonner";
 import { EmptyState, PageHeader } from "@/components/school/bits";
 import { AnnouncementCard } from "@/components/school/shared";
 import { useMe } from "@/components/school/useMe";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,6 +48,7 @@ function NoticesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteNoticeId, setDeleteNoticeId] = useState<string | null>(null);
 
   // New Notice Form State
   const [title, setTitle] = useState("");
@@ -85,10 +96,11 @@ function NoticesPage() {
     setBody("");
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("هل تريد حذف هذا الإعلان نهائياً؟")) {
-      deleteAnnouncement(id);
+  const confirmDelete = () => {
+    if (deleteNoticeId) {
+      deleteAnnouncement(deleteNoticeId);
       toast.success("تم حذف الإعلان");
+      setDeleteNoticeId(null);
     }
   };
 
@@ -166,7 +178,7 @@ function NoticesPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleDelete(a.id)}
+                    onClick={() => setDeleteNoticeId(a.id)}
                     className="h-8 text-xs text-destructive hover:bg-danger-soft hover:text-destructive"
                   >
                     <Trash2 className="h-3.5 w-3.5 me-1" />
@@ -258,6 +270,24 @@ function NoticesPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Alert Dialog */}
+      <AlertDialog open={!!deleteNoticeId} onOpenChange={(open) => !open && setDeleteNoticeId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف الإعلان</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من رغبتك في حذف هذا الإعلان نهائياً من اللوحة المدرسية؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              نعم، حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -38,6 +38,7 @@ export interface NavCategory {
 
 export const navItems = {
   home: { to: "/app" as AppPath, label: "الرئيسية", icon: Home },
+  grades: { to: "/app" as AppPath, tab: "grades", label: "كشف الدرجات والشهادات", icon: Award },
   schedule: { to: "/app/schedule" as AppPath, label: "الجدول الدراسي", icon: CalendarDays },
   calendar: { to: "/app/calendar" as AppPath, label: "التقويم والامتحانات", icon: Award },
   homework: { to: "/app/homework" as AppPath, label: "الواجبات والدروس", icon: BookOpen },
@@ -51,9 +52,26 @@ export const navItems = {
 
 /** Categorized navigation for the slide-out side drawer and persistent side navigation. */
 export function getDrawerCategories(role: Role): NavCategory[] {
+  if (role === "parent") {
+    return [
+      {
+        title: "بوابة ولي الأمر",
+        items: [navItems.home, navItems.grades, navItems.fees],
+      },
+      {
+        title: "المتابعة المدرسية للأبناء",
+        items: [navItems.attendance, navItems.homework, navItems.schedule],
+      },
+      {
+        title: "التواصل والتقويم",
+        items: [navItems.calendar, navItems.notices],
+      },
+    ];
+  }
+
   const main: NavCategory = {
     title: "القائمة الرئيسية",
-    items: [navItems.home, navItems.schedule, navItems.calendar],
+    items: [navItems.home, navItems.grades, navItems.schedule, navItems.calendar],
   };
 
   const academicItems: NavItem[] =
@@ -85,7 +103,8 @@ export function sideNav(role: Role): NavItem[] {
 }
 
 export const roleLabel: Record<Role, string> = {
-  student: "طالب / ولي أمر",
+  student: "طالب",
+  parent: "ولي أمر",
   teacher: "معلم",
   admin: "إدارة المدرسة",
 };

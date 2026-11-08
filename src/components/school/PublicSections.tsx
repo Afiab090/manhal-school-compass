@@ -22,45 +22,55 @@ import { CONTACT } from "./PublicLayout";
 
 export const stages = [
   {
-    title: "الصف الأول الثانوي",
+    title: "المرحلة الابتدائية (الأساس)",
+    badge: "الصف الأول — السادس (بنين وبنات)",
     icon: BookMarked,
-    text: "مرحلة التأسيس الثانوي: تعزيز المهارات الأساسية في اللغات والرياضيات والعلوم مع برنامج إرشاد أكاديمي لاختيار المسار.",
-    points: ["مواد أساسية مشتركة", "إرشاد أكاديمي مبكر", "أنشطة ثقافية ورياضية"],
+    text: "بناء الأساس المعرفي واللغوي والقيمي المتين، مع التركيز على التفكير الاستكشافي وبيئة محفزة وآمنة لأطفالنا.",
+    points: ["تأسيس لغوي ورياضيات متقدمة", "مختبر مهارات تفاعلي", "أنشطة تربوية وسلوكية هادفة"],
   },
   {
-    title: "الصف الثاني الثانوي",
+    title: "المرحلة المتوسطة",
+    badge: "الصف الأول — الثالث المتوسط",
     icon: FlaskConical,
-    text: "التخصص في المسارين العلمي والأدبي مع مختبرات حديثة للفيزياء والكيمياء والأحياء ومعمل حاسوب متكامل.",
-    points: ["المسار العلمي والأدبي", "مختبرات تطبيقية", "مشاريع بحثية"],
+    text: "تنمية مهارات التفكير الناقد والتحليل العلمي والاستعداد للمسارات التخصصية في بيئة تربوية رائدة (أقسام بنين وبنات منفصلة).",
+    points: ["معامل علوم وتطبيقات حاسوبية", "بناء الشخصية القيادية", "تهيئة مبكرة للتفوق الأكاديمي"],
   },
   {
-    title: "الصف الثالث الثانوي",
+    title: "المرحلة الثانوية",
+    badge: "الصفوف: أول، ثانٍ، وثالث ثانوي",
     icon: GraduationCap,
-    text: "الاستعداد لامتحانات الشهادة الثانوية السودانية عبر خطط مراجعة مكثفة وامتحانات تجريبية ومتابعة فردية.",
-    points: ["مراجعات مكثفة", "امتحانات تجريبية", "متابعة فردية لكل طالب"],
+    text: "التميز الأكاديمي والتحصيل المتقدم في المسارين العلمي والأدبي لتحقيق أعلى المراتب في امتحانات الشهادة الثانوية السودانية.",
+    points: ["مساران تخصصيان: علمي وأدبي", "مراجعات وامتحانات تجريبية دورية", "إشراف أكاديمي مكثف ونخب تعليمية"],
   },
 ];
 
 export const values = [
-  { icon: Target, title: "رسالتنا", text: "تقديم تعليم ثانوي متميز يجمع بين التحصيل العلمي الرصين والقيم الأصيلة." },
-  { icon: Lightbulb, title: "رؤيتنا", text: "أن نكون المنهل الأول للتعليم الثانوي النوعي في السودان." },
-  { icon: HeartHandshake, title: "قيمنا", text: "الإتقان، الأمانة، الاحترام، والشراكة الحقيقية مع الأسرة." },
+  { icon: Target, title: "رسالتنا", text: "تقديم تعليم رصين ومتميز يجمع بين التحصيل العلمي الحديث والقيم الأخلاقية الأصيلة لكافة المراحل." },
+  { icon: Lightbulb, title: "رؤيتنا", text: "أن نكون المنهل الأول والمؤسسة التربوية النموذجية الرائدة في السودان." },
+  { icon: HeartHandshake, title: "قيمنا", text: "الإتقان، الأمانة، الاحترام، والشراكة الوثيقة والمستمرة مع الأسرة وأولياء الأمور." },
 ];
 
 export function StagesGrid() {
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid gap-6 md:grid-cols-3">
       {stages.map((s) => (
-        <div key={s.title} className="group rounded-3xl border bg-card p-6 shadow-card transition-all hover:-translate-y-1 hover:border-gold">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground group-hover:bg-gradient-gold group-hover:text-accent-foreground">
-            <s.icon className="h-6 w-6" />
+        <div key={s.title} className="group flex flex-col justify-between rounded-3xl border bg-card p-6 shadow-card transition-all hover:-translate-y-1 hover:border-gold">
+          <div>
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground group-hover:bg-gradient-gold group-hover:text-accent-foreground transition-all">
+                <s.icon className="h-6 w-6" />
+              </div>
+              <span className="rounded-full bg-gold-soft px-3 py-1 text-xs font-bold text-navy">
+                {s.badge}
+              </span>
+            </div>
+            <h3 className="font-display text-xl font-bold text-navy">{s.title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{s.text}</p>
           </div>
-          <h3 className="font-display text-xl font-bold text-navy">{s.title}</h3>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{s.text}</p>
-          <ul className="mt-4 space-y-1.5">
+          <ul className="mt-5 space-y-2 border-t pt-4">
             {s.points.map((p) => (
-              <li key={p} className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <span className="h-1.5 w-1.5 rounded-full bg-gold" />
+              <li key={p} className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-gold shrink-0" />
                 {p}
               </li>
             ))}

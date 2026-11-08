@@ -12,13 +12,15 @@ import { cn } from "@/lib/utils";
 import { Field } from "./bits";
 
 const roles: { role: Role; label: string; icon: typeof Users; idLabel: string; placeholder: string }[] = [
-  { role: "student", label: "طالب / ولي أمر", icon: Users, idLabel: "الرقم الأكاديمي", placeholder: DEMO.student.academicId },
+  { role: "student", label: "طالب", icon: Users, idLabel: "الرقم الأكاديمي", placeholder: DEMO.student.academicId },
+  { role: "parent", label: "ولي أمر", icon: Users, idLabel: "الرقم الوطني / الهاتف", placeholder: DEMO.parent.nationalId },
   { role: "teacher", label: "معلم", icon: GraduationCap, idLabel: "الرقم الوظيفي", placeholder: DEMO.teacher.employeeId },
   { role: "admin", label: "الإدارة", icon: ShieldCheck, idLabel: "اسم المستخدم", placeholder: DEMO.admin.username },
 ];
 
 const demoIds: Record<Role, string> = {
   student: DEMO.student.academicId,
+  parent: DEMO.parent.nationalId,
   teacher: DEMO.teacher.employeeId,
   admin: DEMO.admin.username,
 };
@@ -64,7 +66,7 @@ export function LoginPortal({ className }: { className?: string }) {
         </div>
       </div>
 
-      <div role="tablist" className="mb-5 grid grid-cols-3 gap-1.5 rounded-2xl bg-muted p-1.5">
+      <div role="tablist" className="mb-5 grid grid-cols-2 gap-1.5 rounded-2xl bg-muted p-1.5 sm:grid-cols-4">
         {roles.map((r) => (
           <button
             key={r.role}
@@ -138,10 +140,14 @@ export function LoginPortal({ className }: { className?: string }) {
         <span className="h-px flex-1 bg-border" />
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Button variant="gold" onClick={() => quick("student")}>
           <Zap />
           كطالب
+        </Button>
+        <Button variant="soft" onClick={() => quick("parent")}>
+          <Zap />
+          كولي أمر
         </Button>
         <Button variant="soft" onClick={() => quick("teacher")}>
           <Zap />

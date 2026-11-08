@@ -3,13 +3,22 @@ import { useSyncExternalStore } from "react";
 import { approveReceipt, toISODate, uid } from "./logic";
 import { DEMO, SEED_VERSION, createSeed } from "./seed";
 import type {
+  AcademicSection,
+  AcademicStage,
+  AcademicYearConfig,
   Announcement,
   AppNotification,
   AttendanceStatus,
+  BehaviorRecord,
   CalendarEvent,
+  GradeEntry,
+  GradeLevel,
   Homework,
+  Parent,
   Receipt,
+  ReceiptAuditStatus,
   Role,
+  SchoolClass,
   SchoolState,
   Slot,
   Student,
@@ -18,11 +27,10 @@ import type {
 
 /**
  * Local-first store. Everything lives in localStorage under one key so that
- * actions from one role (admin, teacher, student) are visible to the others
+ * actions from one role (admin, teacher, student, parent) are visible to the others
  * immediately — and across browser tabs via the `storage` event.
- * See src/lib/db-config.ts for the matching cloud schema.
  */
-const KEY = "almanhal-school-state-v2";
+const KEY = "almanhal-school-state-v3";
 
 let state: SchoolState | null = null;
 let serverSnapshot: SchoolState | null = null;
@@ -109,7 +117,7 @@ function notify(s: SchoolState, n: Omit<AppNotification, "id" | "date" | "readBy
   };
 }
 
-/* ---------------- Session ---------------- */
+/* ---------------- Session & Authentication ---------------- */
 
 export function login(role: Role, identifier: string, password: string): { ok: true } | { ok: false; error: string } {
   const s = load();
@@ -117,6 +125,7 @@ export function login(role: Role, identifier: string, password: string): { ok: t
   if (password !== DEMO.password) return { ok: false, error: "كلمة المرور غير صحيحة" };
   let userId: string | undefined;
   if (role === "student") userId = s.students.find((x) => x.academicId.toLowerCase() === id.toLowerCase())?.id;
+  if (role === "parent") userId = s.parents.find((x) => x.nationalId.toLowerCase() === id.toLowerCase() || x.phone === id)?.id;
   if (role === "teacher") userId = s.teachers.find((x) => x.employeeId.toLowerCase() === id.toLowerCase())?.id;
   if (role === "admin") userId = s.admins.find((x) => x.username.toLowerCase() === id.toLowerCase())?.id;
   if (!userId) return { ok: false, error: "لم يتم العثور على حساب بهذا الرقم" };
@@ -125,7 +134,14 @@ export function login(role: Role, identifier: string, password: string): { ok: t
 }
 
 export function demoLogin(role: Role) {
-  const userId = role === "student" ? DEMO.student.id : role === "teacher" ? DEMO.teacher.id : DEMO.admin.id;
+  const userId =
+    role === "student"
+      ? DEMO.student.id
+      : role === "parent"
+        ? DEMO.parent.id
+        : role === "teacher"
+          ? DEMO.teacher.id
+          : DEMO.admin.id;
   update((st) => ({ ...st, session: { role, userId } }));
 }
 
@@ -140,6 +156,19 @@ export function resetDemoData() {
   emit();
 }
 
+export function setActiveChild(childId: string) {
+  update((st) => {
+    if (!st.session || st.session.role !== "parent") return st;
+    return {
+      ...st,
+      session: {
+        ...st.session,
+        activeChildId: childId,
+      },
+    };
+  });
+}
+
 /* ---------------- Notifications ---------------- */
 
 export function markNotificationsRead(userId: string, ids: string[]) {
@@ -151,53 +180,198 @@ export function markNotificationsRead(userId: string, ids: string[]) {
   }));
 }
 
-/* ---------------- Fees ---------------- */
+/* ---------------- Fees & Receipts (Bankak / Cash) ---------------- */
 
-export function submitReceipt(input: { studentId: string; reference: string; amount: number; image?: string; note?: string }) {
+export function submitReceipt(input: {
+  studentId: string;
+  reference: string;
+  transactionId?: string;
+  bankName?: string;
+  senderAccount?: string;
+  amount: number;
+  image?: string;
+  note?: string;
+}) {
   update((s) => {
-    const receipt: Receipt = { ...input, id: uid("rc"), status: "pending", submittedAt: new Date().toISOString() };
+    const receipt: Receipt = {
+      ...input,
+      id: uid("rc"),
+      status: "pending",
+      auditStatus: "under_review",
+      submittedAt: new Date().toISOString(),
+    };
     const student = s.students.find((x) => x.id === input.studentId);
     return notify(
       { ...s, receipts: [receipt, ...s.receipts] },
-      { title: "إشعار دفع جديد", body: `${student?.name ?? "طالب"} أرفق إشعار دفع بانتظار المراجعة`, to: "admin", link: "/app/fees" },
+      {
+        title: "إشعار سداد بنكك جديد",
+        body: `${student?.name ?? "طالب"} أرفق إشعار سداد (مرجع: ${input.reference}${input.transactionId ? ` - رقم العملية: ${input.transactionId}` : ""}) بانتظار التدقيق`,
+        to: "admin",
+        link: "/app/fees",
+      },
     );
   });
 }
 
-export function reviewReceipt(receiptId: string, decision: "approved" | "rejected") {
+export function updateReceiptAudit(
+  receiptId: string,
+  auditStatus: ReceiptAuditStatus,
+  auditNotes?: string,
+  auditedBy?: string,
+) {
+  update((s) => ({
+    ...s,
+    receipts: s.receipts.map((r) =>
+      r.id === receiptId
+        ? {
+            ...r,
+            auditStatus,
+            auditNotes: auditNotes ?? r.auditNotes,
+            auditedBy: auditedBy ?? r.auditedBy,
+          }
+        : r,
+    ),
+  }));
+}
+
+export function reviewReceipt(
+  receiptId: string,
+  decision: "approved" | "rejected",
+  auditStatus?: ReceiptAuditStatus,
+  auditNotes?: string,
+) {
   update((s) => {
     const r = s.receipts.find((x) => x.id === receiptId);
     if (!r || r.status !== "pending") return s;
     const nowISO = new Date().toISOString();
     if (decision === "rejected") {
       return notify(
-        { ...s, receipts: s.receipts.map((x) => (x.id === receiptId ? { ...x, status: "rejected", reviewedAt: nowISO } : x)) },
-        { title: "تم رفض إشعار الدفع", body: `المرجع ${r.reference} — يرجى مراجعة الشؤون المالية`, to: "student", toUserId: r.studentId, link: "/app/fees" },
+        {
+          ...s,
+          receipts: s.receipts.map((x) =>
+            x.id === receiptId
+              ? {
+                  ...x,
+                  status: "rejected",
+                  auditStatus: auditStatus ?? "discrepancy",
+                  auditNotes: auditNotes ?? x.auditNotes,
+                  reviewedAt: nowISO,
+                }
+              : x,
+          ),
+        },
+        {
+          title: "تم رفض إشعار الدفع",
+          body: `المرجع ${r.reference}${r.transactionId ? ` (رقم العملية: ${r.transactionId})` : ""} — يرجى مراجعة الشؤون المالية`,
+          to: "student",
+          toUserId: r.studentId,
+          link: "/app/fees",
+        },
       );
     }
     const receiptNo = `RC-${new Date().getFullYear()}-${String(1500 + s.payments.length)}`;
     const { receipt, payment } = approveReceipt(r, nowISO, receiptNo);
+    const updatedReceipt: Receipt = {
+      ...receipt,
+      auditStatus: auditStatus ?? "verified_match",
+      auditNotes: auditNotes ?? "تمت المطابقة والاعتماد بنجاح",
+    };
     return notify(
-      { ...s, receipts: s.receipts.map((x) => (x.id === receiptId ? receipt : x)), payments: [...s.payments, payment] },
-      { title: "تم اعتماد إشعار الدفع", body: `تمت إضافة المبلغ إلى حسابك — إيصال رقم ${receiptNo}`, to: "student", toUserId: r.studentId, link: "/app/fees" },
+      {
+        ...s,
+        receipts: s.receipts.map((x) => (x.id === receiptId ? updatedReceipt : x)),
+        payments: [{ ...payment, transactionId: r.transactionId }, ...s.payments],
+      },
+      {
+        title: "تم اعتماد إشعار السداد بنجاح",
+        body: `تمت إضافة المبلغ إلى حسابك — إيصال رقم ${receiptNo}${r.transactionId ? ` (رقم العملية: ${r.transactionId})` : ""}`,
+        to: "student",
+        toUserId: r.studentId,
+        link: "/app/fees",
+      },
     );
   });
 }
 
-export function recordPayment(studentId: string, amount: number, method: string) {
+export function recordPayment(studentId: string, amount: number, method: string, transactionId?: string) {
   update((s) => ({
     ...s,
     payments: [
-      ...s.payments,
       {
         id: uid("pay"),
         studentId,
         amount,
         method,
+        transactionId,
         date: toISODate(new Date()),
         receiptNo: `RC-${new Date().getFullYear()}-${String(1500 + s.payments.length)}`,
       },
+      ...s.payments,
     ],
+  }));
+}
+
+/* ---------------- Grades & Academic Assessment ---------------- */
+
+export function recordGrade(entry: Omit<GradeEntry, "id" | "recordedAt">) {
+  update((s) => {
+    const existingIndex = s.gradesList.findIndex(
+      (g) =>
+        g.studentId === entry.studentId &&
+        g.subject === entry.subject &&
+        g.term === entry.term &&
+        g.academicYear === entry.academicYear,
+    );
+    const nowISO = new Date().toISOString();
+    const id = uid("gr");
+    const newEntry: GradeEntry = { ...entry, id, recordedAt: nowISO };
+    const updatedGrades =
+      existingIndex >= 0
+        ? s.gradesList.map((g, idx) => (idx === existingIndex ? { ...newEntry, id: g.id } : g))
+        : [newEntry, ...s.gradesList];
+
+    return notify(
+      { ...s, gradesList: updatedGrades },
+      {
+        title: "رصد نتيجة أكاديمية",
+        body: `تم رصد درجة مادة ${entry.subject} (المجموع: ${entry.totalScore}٪)`,
+        to: "parent",
+        toUserId: entry.studentId,
+        link: "/app",
+      },
+    );
+  });
+}
+
+export function deleteGrade(id: string) {
+  update((s) => ({
+    ...s,
+    gradesList: s.gradesList.filter((g) => g.id !== id),
+  }));
+}
+
+/* ---------------- Behavior & Conduct Records ---------------- */
+
+export function addBehaviorRecord(record: Omit<BehaviorRecord, "id">) {
+  update((s) => {
+    const item: BehaviorRecord = { ...record, id: uid("bh") };
+    return notify(
+      { ...s, behaviorRecords: [item, ...s.behaviorRecords] },
+      {
+        title: record.type === "positive" ? "إشادة سلوكية وتربوية" : "ملاحظة تربوية وانضباطية",
+        body: record.title,
+        to: "parent",
+        toUserId: record.studentId,
+        link: "/app",
+      },
+    );
+  });
+}
+
+export function deleteBehaviorRecord(id: string) {
+  update((s) => ({
+    ...s,
+    behaviorRecords: s.behaviorRecords.filter((b) => b.id !== id),
   }));
 }
 
@@ -293,7 +467,7 @@ export function deleteEvent(id: string) {
   update((s) => ({ ...s, events: s.events.filter((x) => x.id !== id) }));
 }
 
-/* ---------------- Directory & School Management ---------------- */
+/* ---------------- Directory, Parents & School Management ---------------- */
 
 export function addStudent(student: Omit<Student, "id"> & { id?: string }) {
   update((s) => {
@@ -315,6 +489,28 @@ export function addStudent(student: Omit<Student, "id"> & { id?: string }) {
   });
 }
 
+export function addParent(parent: Omit<Parent, "id"> & { id?: string }) {
+  update((s) => {
+    const id = parent.id ?? uid("p");
+    return {
+      ...s,
+      parents: [{ ...parent, id }, ...s.parents],
+    };
+  });
+}
+
+export function linkChildToParent(parentId: string, studentId: string) {
+  update((s) => ({
+    ...s,
+    parents: s.parents.map((p) =>
+      p.id === parentId && !p.studentIds.includes(studentId)
+        ? { ...p, studentIds: [...p.studentIds, studentId] }
+        : p,
+    ),
+    students: s.students.map((st) => (st.id === studentId ? { ...st, parentId } : st)),
+  }));
+}
+
 export function addTeacher(teacher: Omit<Teacher, "id"> & { id?: string }) {
   update((s) => {
     const id = teacher.id ?? uid("t");
@@ -333,6 +529,13 @@ export function assignTeacherClasses(teacherId: string, classIds: string[]) {
   }));
 }
 
+export function addClass(schoolClass: SchoolClass) {
+  update((s) => ({
+    ...s,
+    classes: [...s.classes, schoolClass],
+  }));
+}
+
 export function forceResetDefaultData() {
   state = createSeed();
   state.session = { role: "admin", userId: DEMO.admin.id };
@@ -348,6 +551,13 @@ export function currentUser(s: SchoolState) {
   if (sess.role === "student") {
     const u = s.students.find((x) => x.id === sess.userId);
     return u ? { role: "student" as const, id: u.id, name: u.name, student: u } : null;
+  }
+  if (sess.role === "parent") {
+    const u = s.parents.find((x) => x.id === sess.userId);
+    if (!u) return null;
+    const children = s.students.filter((st) => u.studentIds.includes(st.id));
+    const activeChild = children.find((c) => c.id === sess.activeChildId) ?? children[0] ?? null;
+    return { role: "parent" as const, id: u.id, name: u.name, parent: u, children, activeChild };
   }
   if (sess.role === "teacher") {
     const u = s.teachers.find((x) => x.id === sess.userId);

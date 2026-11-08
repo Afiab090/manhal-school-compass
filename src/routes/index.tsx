@@ -18,13 +18,13 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "مدرسة المنهل الثانوية الخاصة — منهل العلم والمعرفة" },
+      { title: "مجمع مدارس المنهل الخاصة — منهل العلم وصناعة المستقبل" },
       {
         name: "description",
-        content: "الموقع الرسمي والبوابة الإلكترونية لمدرسة المنهل الثانوية الخاصة: الجداول، الرسوم، الواجبات، والإعلانات.",
+        content: "الموقع الرسمي والبوابة المدرسية الإلكترونية لمجمع مدارس المنهل الخاصة: المراحل الابتدائية والمتوسطة والثانوية (بنين وبنات).",
       },
-      { property: "og:title", content: "مدرسة المنهل الثانوية الخاصة" },
-      { property: "og:description", content: "منهل العلم والمعرفة — البوابة الإلكترونية للطلاب وأولياء الأمور والمعلمين." },
+      { property: "og:title", content: "مجمع مدارس المنهل الخاصة" },
+      { property: "og:description", content: "منهل العلم والمعرفة — البوابة الإلكترونية الشاملة للطلاب وأولياء الأمور والمعلمين." },
     ],
   }),
   component: Index,
@@ -53,8 +53,7 @@ function Index() {
               منهلُ العلمِ <span className="text-gold">وصناعةُ المستقبل</span>
             </h1>
             <p className="mt-5 text-base leading-relaxed text-hero-foreground/85 md:text-lg">
-              مدرسة المنهل الثانوية الخاصة — بيئة تعليمية متكاملة تجمع بين التميز الأكاديمي والقيم الأصيلة، مع
-              بوابة إلكترونية تربط الطالب وولي الأمر والمعلم في مكان واحد.
+              مجمع مدارس المنهل الخاصة — بيئة تعليمية وتربوية متكاملة (ابتدائي، متوسط، ثانوي - بنين وبنات) تجمع بين التميز الأكاديمي والقيم الأصيلة، مع بوابة إلكترونية تربط الطالب وولي الأمر والمعلم في مكان واحد.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild variant="gold" size="lg">
@@ -107,7 +106,11 @@ function Index() {
       {/* Stages */}
       <section className="border-y bg-secondary/50 py-16">
         <div className="mx-auto max-w-6xl px-4">
-          <SectionHeading eyebrow="المراحل التعليمية" title="ثلاث سنوات نحو الشهادة الثانوية" />
+          <SectionHeading
+            eyebrow="المراحل التعليمية"
+            title="منظومة تعليمية متدرجة وشاملة"
+            text="نوفر تعليماً متميزاً عبر المراحل الابتدائية والمتوسطة والثانوية مع كادر تعليمي خبير ومرافق متطورة لكلا الجنسين."
+          />
           <StagesGrid />
         </div>
       </section>

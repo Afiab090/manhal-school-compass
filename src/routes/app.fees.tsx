@@ -40,6 +40,7 @@ import {
 import {
   recordPayment,
   reviewReceipt,
+  setActiveChild,
   submitReceipt,
 } from "@/lib/school/store";
 import type { Student } from "@/lib/school/types";
@@ -66,10 +67,17 @@ function StudentFeesView() {
     parentPhone: "0912 777 314",
     totalFees: 900000,
   };
-  const st: Student = me.role === "student" ? me.student : (s.students[0] ?? fallbackStudent);
+  const st: Student =
+    me.role === "student"
+      ? me.student
+      : me.role === "parent"
+        ? (me.activeChild || s.students[0] || fallbackStudent)
+        : (s.students[0] ?? fallbackStudent);
+
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [reference, setReference] = useState("");
+  const [transactionId, setTransactionId] = useState("");
   const [note, setNote] = useState("");
   const [image, setImage] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -124,6 +132,9 @@ function StudentFeesView() {
       const receiptPayload: {
         studentId: string;
         reference: string;
+        transactionId?: string;
+        bankName?: string;
+        senderAccount?: string;
         amount: number;
         image?: string;
         note?: string;
@@ -131,7 +142,10 @@ function StudentFeesView() {
         studentId: st.id,
         amount: parsedAmount,
         reference: reference.trim(),
+        bankName: "بنكك (بنك الخرطوم)",
+        senderAccount: st.parentPhone,
       };
+      if (transactionId.trim()) receiptPayload.transactionId = transactionId.trim();
       if (note.trim()) receiptPayload.note = note.trim();
       if (image) receiptPayload.image = image;
 
@@ -165,6 +179,34 @@ function StudentFeesView() {
           </Button>
         }
       />
+
+      {/* Multi-child switcher for parents */}
+      {me.role === "parent" && me.children.length > 1 && (
+        <div className="flex items-center gap-2 p-3 bg-card border rounded-2xl shadow-card overflow-x-auto no-scrollbar">
+          <span className="text-xs font-bold text-muted-foreground shrink-0">متابعة رسوم الابن:</span>
+          {me.children.map((child) => {
+            const isSelected = child.id === st.id;
+            return (
+              <button
+                key={child.id}
+                type="button"
+                onClick={() => {
+                  setActiveChild(child.id);
+                  toast.success(`تم اختيار متابعة رسوم: ${child.name}`);
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 border",
+                  isSelected
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-muted/40 border-border text-foreground hover:bg-muted",
+                )}
+              >
+                {child.name.split(" ").slice(0, 2).join(" ")}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Overview Card */}
       <div className="relative overflow-hidden rounded-3xl bg-hero p-5 text-hero-foreground shadow-elevated">
@@ -373,6 +415,20 @@ function StudentFeesView() {
             </div>
 
             <div className="space-y-1.5">
+              <Label>رقم العملية المرجعي لتطبيق بنكك (Transaction ID)</Label>
+              <Input
+                value={transactionId}
+                onChange={(e) => setTransactionId(e.target.value)}
+                placeholder="مثال: TRX-BOK-98471203"
+                dir="ltr"
+                className="font-mono text-xs"
+              />
+              <span className="text-[11px] text-muted-foreground block">
+                الرقم المرجعي المكون من أرقام والموجود أسفل إشعار بنكك لسرعة المطابقة والاعتماد
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
               <Label>ملاحظات إضافية</Label>
               <Input
                 value={note}
@@ -537,10 +593,20 @@ function AdminFeesView() {
                         {formatMoney(r.amount)}
                       </Badge>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
+                    <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap items-center gap-2.5">
                       <span>المرجع: <span dir="ltr" className="font-mono font-bold text-foreground">{r.reference}</span></span>
+                      {r.transactionId && (
+                        <span className="bg-gold-soft px-2 py-0.5 rounded font-mono text-navy font-bold text-[11px]" dir="ltr">
+                          رقم بنكك: {r.transactionId}
+                        </span>
+                      )}
                       <span>·</span>
                       <span>بتاريخ: {formatDate(r.submittedAt)}</span>
+                      {r.auditStatus && (
+                        <Badge variant={r.auditStatus === "verified_match" ? "success" : "warning"} className="text-[10px]">
+                          {r.auditStatus === "verified_match" ? "مطابق للمصرف" : "قيد التدقيق"}
+                        </Badge>
+                      )}
                       {r.note && <span>· ملاحظة: {r.note}</span>}
                     </div>
                   </div>

@@ -10,13 +10,23 @@ import {
   UserCheck,
   Users,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, PageHeader, Panel } from "@/components/school/bits";
 import { useMe } from "@/components/school/useMe";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +41,7 @@ import {
   PERIODS,
   currentOrNextSchoolDay,
 } from "@/lib/school/logic";
-import { deleteSlot, saveSlot } from "@/lib/school/store";
+import { deleteSlot, saveSlot, setActiveChild } from "@/lib/school/store";
 import type { Slot } from "@/lib/school/types";
 import { cn } from "@/lib/utils";
 
@@ -48,9 +58,21 @@ function SchedulePage() {
   const defaultMode = me.role === "teacher" ? "teacher" : "class";
   const [viewMode, setViewMode] = useState<"class" | "teacher">(defaultMode);
 
-  // Class selection (default to student's class, or first class)
-  const defaultClass = me.role === "student" ? me.student.classId : s.classes[0]?.id || "c3a";
+  // Class selection (default to student's class, parent's active child's class, or first class)
+  const defaultClass =
+    me.role === "student"
+      ? me.student.classId
+      : me.role === "parent"
+        ? (me.activeChild?.classId ?? s.classes[0]?.id ?? "c3a")
+        : (s.classes[0]?.id ?? "c3a");
   const [selectedClassId, setSelectedClassId] = useState<string>(defaultClass);
+
+  // Update selected class if parent changes child
+  useEffect(() => {
+    if (me.role === "parent" && me.activeChild) {
+      setSelectedClassId(me.activeChild.classId);
+    }
+  }, [me.role, me.role === "parent" ? me.activeChild?.id : null]);
 
   // Teacher selection (default to current teacher or first teacher)
   const defaultTeacher = me.role === "teacher" ? me.teacher.id : s.teachers[0]?.id || "t1";
@@ -58,6 +80,7 @@ function SchedulePage() {
 
   // Slot Dialog state (for Admin or Teacher)
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteSlotId, setDeleteSlotId] = useState<string | null>(null);
   const [editingSlot, setEditingSlot] = useState<Partial<Slot>>({
     day: selectedDay,
     period: 1,
@@ -100,10 +123,11 @@ function SchedulePage() {
     setDialogOpen(false);
   };
 
-  const handleDeleteSlot = (id: string) => {
-    if (confirm("هل تريد حذف هذه الحصة من الجدول؟")) {
-      deleteSlot(id);
+  const confirmDelete = () => {
+    if (deleteSlotId) {
+      deleteSlot(deleteSlotId);
       toast.success("تم حذف الحصة من الجدول");
+      setDeleteSlotId(null);
     }
   };
 
@@ -138,6 +162,36 @@ function SchedulePage() {
           )
         }
       />
+
+      {/* Parent Child Switcher */}
+      {me.role === "parent" && me.children && me.children.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card/90 p-3 shadow-card">
+          <span className="text-xs font-bold text-muted-foreground ml-2">جدول دراسي لابني/ابنتي:</span>
+          {me.children.map((child) => {
+            const isSelected = me.activeChild?.id === child.id;
+            const childCls = s.classes.find((c) => c.id === child.classId);
+            return (
+              <Button
+                key={child.id}
+                type="button"
+                variant={isSelected ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setActiveChild(child.id);
+                  setSelectedClassId(child.classId);
+                  setViewMode("class");
+                }}
+                className={cn(
+                  "rounded-full text-xs font-bold transition-all",
+                  isSelected && "bg-navy text-gold shadow-sm",
+                )}
+              >
+                {child.name} ({childCls?.name ?? child.classId})
+              </Button>
+            );
+          })}
+        </div>
+      )}
 
       {/* View Switcher: By Class vs By Teacher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border bg-card p-3 shadow-card">
@@ -306,7 +360,7 @@ function SchedulePage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteSlot(slot.id)}
+                      onClick={() => setDeleteSlotId(slot.id)}
                       className="h-8 px-2 text-xs text-destructive hover:bg-danger-soft hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5 me-1" />
@@ -427,6 +481,24 @@ function SchedulePage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Alert Dialog */}
+      <AlertDialog open={!!deleteSlotId} onOpenChange={(open) => !open && setDeleteSlotId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف الحصة من الجدول</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من رغبتك في إزالة هذه الحصة من الجدول الدراسي؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              نعم، حذف الحصة
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

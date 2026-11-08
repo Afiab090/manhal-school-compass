@@ -6,10 +6,16 @@ import { PageHero, StagesGrid } from "@/components/school/PublicSections";
 export const Route = createFileRoute("/stages")({
   head: () => ({
     meta: [
-      { title: "المراحل التعليمية — مدرسة المنهل الثانوية الخاصة" },
-      { name: "description", content: "الصفوف الأول والثاني والثالث الثانوي في مدرسة المنهل: المسارات والبرامج والمتابعة." },
-      { property: "og:title", content: "المراحل التعليمية — مدرسة المنهل" },
-      { property: "og:description", content: "تعرف على برامج الصفوف الثانوية الثلاثة في مدرسة المنهل." },
+      { title: "المراحل التعليمية والأقسام — مجمع مدارس المنهل الخاصة" },
+      {
+        name: "description",
+        content: "المراحل الابتدائية والمتوسطة والثانوية (بنين وبنات) في مدارس المنهل: الرؤية الأكاديمية والبرامج والمسارات التعليمية.",
+      },
+      { property: "og:title", content: "المراحل التعليمية — مجمع مدارس المنهل" },
+      {
+        property: "og:description",
+        content: "تعرف على البرامج والمراحل التعليمية في مجمع مدارس المنهل من الابتدائي حتى الثانوي.",
+      },
     ],
   }),
   component: Stages,
@@ -18,7 +24,10 @@ export const Route = createFileRoute("/stages")({
 function Stages() {
   return (
     <PublicLayout>
-      <PageHero title="المراحل التعليمية" text="مسيرة من ثلاث سنوات تقود الطالب بثقة نحو امتحانات الشهادة الثانوية السودانية." />
+      <PageHero
+        title="المراحل التعليمية والأقسام"
+        text="منظومة تعليمية متكاملة تبدأ من المرحلة الابتدائية وتتدرج عبر المرحلة المتوسطة حتى قمة التميز في الشهادة الثانوية السودانية، في بيئة تربوية رائدة لكلا القسمين (بنين وبنات)."
+      />
       <section className="mx-auto max-w-6xl px-4 py-16">
         <StagesGrid />
       </section>

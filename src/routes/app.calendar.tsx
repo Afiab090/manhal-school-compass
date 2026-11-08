@@ -16,6 +16,16 @@ import { toast } from "sonner";
 
 import { EmptyState, PageHeader, Panel } from "@/components/school/bits";
 import { useMe } from "@/components/school/useMe";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +43,7 @@ import {
   formatDate,
   toISODate,
 } from "@/lib/school/logic";
-import { addEvent, deleteEvent } from "@/lib/school/store";
+import { addEvent, deleteEvent, setActiveChild } from "@/lib/school/store";
 import type { CalendarEvent } from "@/lib/school/types";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +56,7 @@ function CalendarPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterClass, setFilterClass] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteEventId, setDeleteEventId] = useState<string | null>(null);
 
   // New Event Form State
   const [title, setTitle] = useState("");
@@ -55,15 +66,26 @@ function CalendarPage() {
   const [classId, setClassId] = useState<string>("all");
   const [subject, setSubject] = useState("");
 
+  const targetClassId =
+    me.role === "student"
+      ? me.student.classId
+      : me.role === "parent"
+        ? me.activeChild?.classId
+        : null;
+
   const events = useMemo(() => {
     return s.events
       .filter((e) => {
         if (filterType !== "all" && e.type !== filterType) return false;
         if (filterClass !== "all" && e.classId !== "all" && e.classId !== filterClass) return false;
+        // If parent or student selected, show events for all school or their specific class
+        if (targetClassId && filterClass === "all" && e.classId !== "all" && e.classId !== targetClassId) {
+          return false;
+        }
         return true;
       })
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, [s.events, filterType, filterClass]);
+  }, [s.events, filterType, filterClass, targetClassId]);
 
   const handleAddEvent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,10 +111,11 @@ function CalendarPage() {
     setSubject("");
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("هل تريد حذف هذا الموعد من التقويم؟")) {
-      deleteEvent(id);
+  const confirmDelete = () => {
+    if (deleteEventId) {
+      deleteEvent(deleteEventId);
       toast.success("تم حذف الموعد");
+      setDeleteEventId(null);
     }
   };
 
@@ -112,6 +135,32 @@ function CalendarPage() {
         }
       />
 
+      {/* Parent Child Switcher */}
+      {me.role === "parent" && me.children && me.children.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card/90 p-3 shadow-card">
+          <span className="text-xs font-bold text-muted-foreground ml-2">تقويم الطالب:</span>
+          {me.children.map((child) => {
+            const isSelected = me.activeChild?.id === child.id;
+            const childCls = s.classes.find((c) => c.id === child.classId);
+            return (
+              <Button
+                key={child.id}
+                type="button"
+                variant={isSelected ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveChild(child.id)}
+                className={cn(
+                  "rounded-full text-xs font-bold transition-all",
+                  isSelected && "bg-navy text-gold shadow-sm",
+                )}
+              >
+                {child.name} ({childCls?.name ?? child.classId})
+              </Button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -119,84 +168,110 @@ function CalendarPage() {
             { id: "all", label: "جميع المواعيد" },
             { id: "exam", label: "الامتحانات والاختبارات" },
             { id: "event", label: "الأنشطة والفعاليات" },
-            { id: "holiday", label: "العطلات الرسمية" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
+            { id: "holiday", label: "العطلات والإجازات" },
+          ].map((cat) => (
+            <Button
+              key={cat.id}
               type="button"
-              onClick={() => setFilterType(tab.id)}
-              className={cn(
-                "rounded-xl px-3.5 py-2 text-xs font-bold transition-all",
-                filterType === tab.id
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-card border border-border text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
+              variant={filterType === cat.id ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterType(cat.id)}
+              className="rounded-xl text-xs font-bold"
             >
-              {tab.label}
-            </button>
+              {cat.label}
+            </Button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-muted-foreground">الفصل:</span>
-          <select
-            value={filterClass}
-            onChange={(e) => setFilterClass(e.target.value)}
-            className="h-9 rounded-lg border border-input bg-card px-3 text-xs font-bold text-foreground focus:outline-none"
-          >
-            <option value="all">جميع الفصول</option>
-            {s.classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {me.role === "admin" && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground">تصفية حسب الفصل:</span>
+            <select
+              value={filterClass}
+              onChange={(e) => setFilterClass(e.target.value)}
+              className="h-9 rounded-lg border border-input bg-card px-3 text-xs font-bold text-foreground focus:outline-none"
+            >
+              <option value="all">كافة الفصول والمراحل</option>
+              {s.classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* Events Timeline */}
+      {/* Events List */}
       {events.length === 0 ? (
         <EmptyState
           icon={CalendarDays}
-          title="لا توجد مواعيد مسجلة تطابق التصفية"
-          text="اختر تصنيفاً آخر أو قم بإضافة موعد جديد"
+          title="لا توجد مواعيد أو امتحانات"
+          text="لم يتم إدراج مواعيد مطابقة للتصنيف الحالي"
         />
       ) : (
         <div className="space-y-3">
           {events.map((ev) => {
+            const cls = s.classes.find((c) => c.id === ev.classId);
             const diff = daysUntil(ev.date, new Date());
-            const cls = ev.classId !== "all" ? s.classes.find((c) => c.id === ev.classId) : null;
-            const d = new Date(ev.date);
-            const dayName = DAYS[d.getDay()] ?? "";
+
+            const isExam = ev.type === "exam";
+            const isHoliday = ev.type === "holiday";
 
             return (
               <div
                 key={ev.id}
                 className={cn(
-                  "flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-card transition-all hover:border-gold",
-                  ev.type === "exam" && "border-s-4 border-s-destructive",
-                  ev.type === "event" && "border-s-4 border-s-gold",
-                  ev.type === "holiday" && "border-s-4 border-s-success",
+                  "flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border bg-card p-4 shadow-card hover:border-gold transition-all",
+                  isHoliday && "bg-success-soft/20 border-success/30",
+                  isExam && "border-primary/20",
                 )}
               >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                    <span className="text-[10px] opacity-75">{dayName}</span>
-                    <span className="text-base font-extrabold leading-none">{d.getDate()}</span>
+                <div className="flex items-start gap-3.5">
+                  <div
+                    className={cn(
+                      "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-bold shadow-sm",
+                      isExam
+                        ? "bg-primary text-primary-foreground"
+                        : isHoliday
+                        ? "bg-success text-success-foreground"
+                        : "bg-gold text-navy",
+                    )}
+                  >
+                    {isExam ? (
+                      <Award className="h-5 w-5" />
+                    ) : isHoliday ? (
+                      <Palmtree className="h-5 w-5" />
+                    ) : (
+                      <PartyPopper className="h-5 w-5" />
+                    )}
                   </div>
 
                   <div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className="font-bold text-base text-foreground">{ev.title}</span>
-                      {ev.type === "exam" && <Badge variant="danger">امتحان</Badge>}
-                      {ev.type === "event" && <Badge variant="gold">فعالية مدرسية</Badge>}
-                      {ev.type === "holiday" && <Badge variant="success">عطلة رسمية</Badge>}
-                      {cls && <Badge variant="outline">{cls.name}</Badge>}
-                      {ev.classId === "all" && <Badge variant="secondary">لكافة الفصول</Badge>}
+                      <Badge variant="outline" className="text-xs">
+                        {ev.classId === "all" ? "عام لكافة المدرسة" : cls?.name}
+                      </Badge>
+                      <Badge
+                        className={cn(
+                          "text-xs font-semibold",
+                          isExam
+                            ? "bg-primary text-primary-foreground"
+                            : isHoliday
+                            ? "bg-success text-success-foreground"
+                            : "bg-gold text-navy",
+                        )}
+                      >
+                        {isExam ? "امتحان" : isHoliday ? "عطلة رسمية" : "فعالية"}
+                      </Badge>
                     </div>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      <span>{formatDate(ev.date, { day: "numeric", month: "long", year: "numeric" })}</span>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mt-1">
+                      <span className="flex items-center gap-1 font-semibold">
+                        <CalendarDays className="h-3.5 w-3.5 text-gold" />
+                        {formatDate(ev.date)} ({DAYS[new Date(ev.date).getDay()]})
+                      </span>
                       {ev.time && (
                         <span className="flex items-center gap-1 text-gold font-semibold">
                           <Clock className="h-3 w-3" /> {ev.time}
@@ -229,7 +304,7 @@ function CalendarPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDelete(ev.id)}
+                      onClick={() => setDeleteEventId(ev.id)}
                       className="h-8 text-xs text-destructive hover:bg-danger-soft hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -329,6 +404,24 @@ function CalendarPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Alert Dialog */}
+      <AlertDialog open={!!deleteEventId} onOpenChange={(open) => !open && setDeleteEventId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف الموعد</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من رغبتك في إزالة هذا الحدث من التقويم المدرسي؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              نعم، حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
