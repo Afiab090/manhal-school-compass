@@ -14,7 +14,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # ترقية Node.js إلى الإصدار 22 لحل خطأ Capacitor CLI
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -24,6 +23,7 @@ jobs:
       - name: Install Dependencies & Build Web App
         run: |
           npm install
+          npm install read-excel-file
           npm run build
 
       - name: Sync Capacitor Android
@@ -33,14 +33,12 @@ jobs:
           fi
           npx cap sync android
 
-      # استخدام Java 21 المتوافق مع إصدارات Capacitor الحديثة
       - name: Set up Java JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      # قبول تراخيص الأندرويد تلقائياً دون توقف
       - name: Accept Android SDK Licenses
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
