@@ -1,21 +1,3 @@
-Error: Errored while resolving "read-excel-file/universal"
-Caused by: "./universal" is not exported under the conditions ["module", "browser", ...]
-```[span_1](start_span)[span_1](end_span)
-
-**ما معنى هذا الخطأ ولماذا لم ينجح التعديل السابق؟**
-أنت قمت في المرة السابقة بتثبيت أحدث إصدار من مكتبة `read-excel-file` (`npm install read-excel-file`)[span_2](start_span)[span_2](end_span)، أو أن الوكيل الذكي استخدم استيراداً باسم `read-excel-file/universal` في الكود[span_3](start_span)[span_3](end_span). في الإصدارات الحديثة من هذه المكتبة، لا يوجد مسار فرعي اسمه `/universal` مخصص للمتصفح[span_4](start_span)[span_4](end_span)، بل يجب استيرادها باسم `read-excel-file` فقط (أو `read-excel-file/browser`)! 
-
-وبما أن مجمّع Vite (الإصدار 8 الحديث) صارم جداً[span_5](start_span)[span_5](end_span)، فإنه يرفض بناء المشروع عندما يجد كلمة `/universal` في الكود[span_6](start_span)[span_6](end_span).
-
----
-
-### الحل الجذري والنهائي (من داخل ملف `build-apk.yml` مباشرة بدون البحث في الكود):
-
-بدلاً من أن تبحث يدوياً في عشرات الملفات عن المكان الذي كُتبت فيه كلمة `read-excel-file/universal`[span_7](start_span)[span_7](end_span)، سنضيف سطراً ذكياً جداً في ملف **`build-apk.yml`** يقوم **تلقائياً بالبحث في كل ملفات مجلد `src` واستبدال `read-excel-file/universal` بـ `read-excel-file`** قبل أن يبدأ البناء بثانية واحدة!
-
-افتح ملف **`.github/workflows/build-apk.yml`** من متصفح هاتفك على GitHub، وامسح ما بداخله، والصق هذا الكود الكامل:
-
-```yaml
 name: Build Android APK
 
 on:
@@ -29,49 +11,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
-      - name: Fix Import Error, Install & Build Web App
-        run: |
-          # إصلاح مسار read-excel-file/universal المعطل تلقائياً في كل ملفات الكود
+      - run: |
           find src -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) -exec sed -i 's|read-excel-file/universal|read-excel-file|g' {} +
-          
           npm install
           npm install read-excel-file
           npm run build
 
-      - name: Sync Capacitor Android
-        run: |
+      - run: |
           if [ ! -d "android" ]; then
             npx cap add android
           fi
           npx cap sync android
 
-      - name: Set up Java JDK 21
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Accept Android SDK Licenses
-        run: |
+      - run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: Build Debug APK with Gradle
-        working-directory: ./android
+      - working-directory: ./android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: almanhal-school-apk
           path: android/app/build/outputs/apk/debug/*.apk
