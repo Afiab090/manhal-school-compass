@@ -24,7 +24,8 @@ jobs:
         run: |
           npm install
           npm install read-excel-file
-          npm run build
+          # بناء ملفات العميل الثابتة
+          npx vite build
 
       - name: Sync Capacitor Android
         run: |
