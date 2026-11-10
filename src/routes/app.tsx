@@ -10,7 +10,7 @@ export const Route = createFileRoute("/app")({
   head: () => ({
     meta: [
       { title: "المدرسة الإلكترونية — مدرسة المنهل" },
-      { name: "description", content: "لوحة الطالب وولي الأمر والمعلم والإدارة في مدرسة المنهل الثانوية الخاصة." },
+      { name: "description", content: "لوحة الطالب والمعلم والإدارة في مدرسة المنهل." },
       { property: "og:title", content: "المدرسة الإلكترونية — مدرسة المنهل" },
       { property: "og:description", content: "الجداول والرسوم والواجبات والحضور والإعلانات في مكان واحد." },
       { name: "robots", content: "noindex" },

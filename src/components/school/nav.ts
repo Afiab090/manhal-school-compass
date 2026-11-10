@@ -1,110 +1,39 @@
-import {
-  Award,
-  BookOpen,
-  CalendarDays,
-  GraduationCap,
-  Home,
-  Megaphone,
-  UserCheck,
-  UserCircle,
-  Users,
-  Wallet,
-  type LucideIcon,
-} from "lucide-react";
-
+import { Award, BookOpen, CalendarDays, ClipboardCheck, GraduationCap, Home, Megaphone, Users, Wallet, type LucideIcon } from "lucide-react";
 import type { Role } from "@/lib/school/types";
 
-export type AppPath =
-  | "/app"
-  | "/app/schedule"
-  | "/app/fees"
-  | "/app/notices"
-  | "/app/profile"
-  | "/app/homework"
-  | "/app/attendance"
-  | "/app/calendar";
-
-export interface NavItem {
-  to: AppPath;
-  tab?: string;
-  label: string;
-  icon: LucideIcon;
-}
-
-export interface NavCategory {
-  title: string;
-  items: NavItem[];
-}
-
+export type AppPath = "/app" | "/app/grades" | "/app/schedule" | "/app/fees" | "/app/notices" | "/app/profile" | "/app/homework" | "/app/attendance" | "/app/calendar" | "/app/students" | "/app/teachers" | "/app/timetables";
+export interface NavItem { to: AppPath; tab?: string; label: string; icon: LucideIcon; }
+export interface NavCategory { title: string; items: NavItem[]; }
 export const navItems = {
   home: { to: "/app" as AppPath, label: "الرئيسية", icon: Home },
-  grades: { to: "/app" as AppPath, tab: "grades", label: "كشف الدرجات والشهادات", icon: Award },
-  schedule: { to: "/app/schedule" as AppPath, label: "الجدول الدراسي", icon: CalendarDays },
-  calendar: { to: "/app/calendar" as AppPath, label: "التقويم والامتحانات", icon: Award },
+  grades: { to: "/app/grades" as AppPath, label: "كشف الدرجات والشهادات", icon: Award },
+  schedule: { to: "/app/schedule" as AppPath, label: "الجداول الدراسية", icon: CalendarDays },
+  calendar: { to: "/app/calendar" as AppPath, label: "التقويم والامتحانات", icon: CalendarDays },
   homework: { to: "/app/homework" as AppPath, label: "الواجبات والدروس", icon: BookOpen },
-  attendance: { to: "/app/attendance" as AppPath, label: "الحضور والغياب", icon: UserCheck },
-  fees: { to: "/app/fees" as AppPath, label: "الرسوم الدراسية", icon: Wallet },
+  attendance: { to: "/app/attendance" as AppPath, label: "متابعة الحضور", icon: ClipboardCheck },
+  fees: { to: "/app/fees" as AppPath, label: "كشف الرسوم", icon: Wallet },
   notices: { to: "/app/notices" as AppPath, label: "الإعلانات واللوائح", icon: Megaphone },
-  profile: { to: "/app/profile" as AppPath, label: "الملف الشخصي", icon: UserCircle },
-  classesAndStudents: { to: "/app" as AppPath, tab: "students", label: "متابعة الفصول والطلاب", icon: Users },
-  teachersDirectory: { to: "/app" as AppPath, tab: "teachers", label: "دليل أساتذة المواد", icon: GraduationCap },
+  profile: { to: "/app/profile" as AppPath, label: "الملف الشخصي", icon: Users },
+  students: { to: "/app/students" as AppPath, label: "إدارة الطلبة", icon: Users },
+  teachers: { to: "/app/teachers" as AppPath, label: "إدارة المعلمين", icon: GraduationCap },
+  timetables: { to: "/app/timetables" as AppPath, label: "إدارة الجداول", icon: CalendarDays },
 };
-
-/** Categorized navigation for the slide-out side drawer and persistent side navigation. */
 export function getDrawerCategories(role: Role): NavCategory[] {
-  if (role === "parent") {
-    return [
-      {
-        title: "بوابة ولي الأمر",
-        items: [navItems.home, navItems.grades, navItems.fees],
-      },
-      {
-        title: "المتابعة المدرسية للأبناء",
-        items: [navItems.attendance, navItems.homework, navItems.schedule],
-      },
-      {
-        title: "التواصل والتقويم",
-        items: [navItems.calendar, navItems.notices],
-      },
-    ];
-  }
-
-  const main: NavCategory = {
-    title: "القائمة الرئيسية",
-    items: [navItems.home, navItems.grades, navItems.schedule, navItems.calendar],
-  };
-
-  const academicItems: NavItem[] =
-    role === "teacher"
-      ? [navItems.homework, navItems.attendance, navItems.notices]
-      : [navItems.homework, navItems.attendance, navItems.fees, navItems.notices];
-
-  const academic: NavCategory = {
-    title: "الشؤون الأكاديمية والطلابية",
-    items: academicItems,
-  };
-
-  const categories: NavCategory[] = [main, academic];
-
-  if (role === "admin" || role === "teacher") {
-    categories.push({
-      title: "إدارة المدرسة والمتابعة",
-      items: [navItems.classesAndStudents, navItems.teachersDirectory],
-    });
-  }
-
-  return categories;
+  if (role === "admin") return [
+    { title: "الرئيسية", items: [navItems.home] },
+    { title: "الشؤون الأكاديمية", items: [navItems.schedule, navItems.calendar, navItems.attendance, navItems.notices] },
+    { title: "الإدارة", items: [navItems.students, navItems.teachers, navItems.timetables, navItems.fees] },
+  ];
+  if (role === "teacher") return [
+    { title: "الرئيسية", items: [navItems.home, navItems.grades, navItems.schedule] },
+    { title: "الشؤون الأكاديمية", items: [navItems.homework, navItems.attendance, navItems.calendar, navItems.notices] },
+    { title: "الحساب", items: [navItems.profile] },
+  ];
+  return [
+    { title: "الرئيسية", items: [navItems.home, navItems.grades, navItems.schedule] },
+    { title: "الخدمات الأكاديمية", items: [navItems.homework, navItems.attendance, navItems.calendar, navItems.notices, navItems.fees] },
+    { title: "الحساب", items: [navItems.profile] },
+  ];
 }
-
-/** Flattened items for backward compatibility if needed */
-export function sideNav(role: Role): NavItem[] {
-  const cats = getDrawerCategories(role);
-  return cats.flatMap((c) => c.items);
-}
-
-export const roleLabel: Record<Role, string> = {
-  student: "طالب",
-  parent: "ولي أمر",
-  teacher: "معلم",
-  admin: "إدارة المدرسة",
-};
+export function sideNav(role: Role): NavItem[] { return getDrawerCategories(role).flatMap((category) => category.items); }
+export const roleLabel: Record<Role, string> = { student: "طالب", teacher: "معلم", admin: "الإدارة" };

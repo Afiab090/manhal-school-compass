@@ -3,9 +3,10 @@ import type {
   AttendanceStatus,
   Installment,
   Payment,
-  Receipt,
   Student,
 } from "./types";
+
+export const MAX_WEEKLY_PERIODS = 25;
 
 export const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس"] as const;
 
@@ -109,6 +110,88 @@ export function collectionRate(
   return total > 0 ? Math.round((paid / total) * 100) : 0;
 }
 
+
+export interface StageOverview {
+  classCount: number;
+  activeStudents: number;
+  activeTeachers: number;
+  totalFees: number;
+  collected: number;
+  remaining: number;
+  collectionPercent: number;
+  remainingPercent: number;
+}
+
+export function stageOverview(
+  state: Pick<import("./types").SchoolState, "classes" | "students" | "teachers" | "payments">,
+  stageId: import("./types").StageId,
+): StageOverview {
+  const stageClasses = state.classes.filter((c) => c.stageId === stageId);
+  const classIds = new Set(stageClasses.map((c) => c.id));
+  const students = state.students.filter((st) => classIds.has(st.classId) && st.status === "active");
+  const teachers = state.teachers.filter((t) => t.status === "active" && t.stageIds?.includes(stageId));
+  const studentIds = new Set(students.map((st) => st.id));
+  const totalFees = students.reduce((sum, st) => sum + st.totalFees, 0);
+  const collected = state.payments.filter((p) => studentIds.has(p.studentId)).reduce((sum, p) => sum + p.amount, 0);
+  const remaining = Math.max(0, totalFees - collected);
+  return {
+    classCount: stageClasses.length,
+    activeStudents: students.length,
+    activeTeachers: teachers.length,
+    totalFees,
+    collected,
+    remaining,
+    collectionPercent: totalFees > 0 ? Math.min(100, Math.round((collected / totalFees) * 100)) : 0,
+    remainingPercent: totalFees > 0 ? Math.min(100, Math.round((remaining / totalFees) * 100)) : 0,
+  };
+}
+
+export interface TimetableConflict {
+  type: "teacher" | "room" | "unassigned";
+  severity: "error" | "warning";
+  message: string;
+  slotIds: string[];
+}
+
+/** Detect overlapping teacher/room bookings in one candidate timetable or the full timetable. */
+export function detectTimetableConflicts(
+  slots: import("./types").Slot[],
+  teachers: import("./types").Teacher[] = [],
+): TimetableConflict[] {
+  const conflicts: TimetableConflict[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < slots.length; i += 1) {
+    const current = slots[i]!;
+    const teacher = teachers.find((t) => t.id === current.teacherId);
+    if (teacher && !(teacher.classes ?? []).includes(current.classId)) {
+      const key = `unassigned:${current.id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        conflicts.push({ type: "unassigned", severity: "warning", message: `المعلم ${teacher.name} غير مسند رسمياً لهذا الفصل`, slotIds: [current.id] });
+      }
+    }
+    for (let j = i + 1; j < slots.length; j += 1) {
+      const other = slots[j]!;
+      if (current.day !== other.day || current.period !== other.period || current.classId === other.classId) continue;
+      if (current.teacherId && current.teacherId === other.teacherId) {
+        const key = `teacher:${[current.id, other.id].sort().join(":")}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          conflicts.push({ type: "teacher", severity: "error", message: `المعلم نفسه مسجل في فصلين يوم ${DAYS[current.day]} الحصة ${current.period}`, slotIds: [current.id, other.id] });
+        }
+      }
+      if (current.room.trim() && current.room.trim().toLowerCase() === other.room.trim().toLowerCase()) {
+        const key = `room:${[current.id, other.id].sort().join(":")}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          conflicts.push({ type: "room", severity: "error", message: `القاعة ${current.room} محجوزة لفصلين في الوقت نفسه`, slotIds: [current.id, other.id] });
+        }
+      }
+    }
+  }
+  return conflicts;
+}
+
 export interface AttendanceStats {
   present: number;
   absent: number;
@@ -126,25 +209,6 @@ export function attendanceStats(records: AttendanceRecord[], studentId?: string)
   const total = list.length;
   const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 100;
   return { present, absent, late, total, rate };
-}
-
-/** Approving a receipt turns it into a payment; rejecting changes nothing financially. */
-export function approveReceipt(
-  receipt: Receipt,
-  nowISO: string,
-  receiptNo: string,
-): { receipt: Receipt; payment: Payment } {
-  return {
-    receipt: { ...receipt, status: "approved", reviewedAt: nowISO },
-    payment: {
-      id: `pay-${receipt.id}`,
-      studentId: receipt.studentId,
-      amount: receipt.amount,
-      date: nowISO.slice(0, 10),
-      method: "تحويل بنكي (إشعار مرفق)",
-      receiptNo,
-    },
-  };
 }
 
 export function formatMoney(n: number): string {

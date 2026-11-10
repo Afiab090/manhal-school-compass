@@ -251,3 +251,51 @@
 @utility animate-rise {
   animation: rise 0.45s ease-out both;
 }
+
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 9mm;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    background: #fff !important;
+    color: #111 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .print-schedule-root,
+  .print-schedule-root * {
+    visibility: visible !important;
+  }
+
+  .print-schedule-root {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .print-schedule-root .overflow-hidden,
+  .print-schedule-root .overflow-auto,
+  .print-schedule-root .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  .print-schedule-root button {
+    color: #111 !important;
+    break-inside: avoid;
+  }
+}

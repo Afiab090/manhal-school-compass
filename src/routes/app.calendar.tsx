@@ -43,7 +43,7 @@ import {
   formatDate,
   toISODate,
 } from "@/lib/school/logic";
-import { addEvent, deleteEvent, setActiveChild } from "@/lib/school/store";
+import { addEvent, deleteEvent } from "@/lib/school/store";
 import type { CalendarEvent } from "@/lib/school/types";
 import { cn } from "@/lib/utils";
 
@@ -66,19 +66,14 @@ function CalendarPage() {
   const [classId, setClassId] = useState<string>("all");
   const [subject, setSubject] = useState("");
 
-  const targetClassId =
-    me.role === "student"
-      ? me.student.classId
-      : me.role === "parent"
-        ? me.activeChild?.classId
-        : null;
+  const targetClassId = me.role === "student" ? me.student.classId : null;
 
   const events = useMemo(() => {
     return s.events
       .filter((e) => {
         if (filterType !== "all" && e.type !== filterType) return false;
         if (filterClass !== "all" && e.classId !== "all" && e.classId !== filterClass) return false;
-        // If parent or student selected, show events for all school or their specific class
+        // Students see school-wide events and events assigned to their class.
         if (targetClassId && filterClass === "all" && e.classId !== "all" && e.classId !== targetClassId) {
           return false;
         }
@@ -135,33 +130,7 @@ function CalendarPage() {
         }
       />
 
-      {/* Parent Child Switcher */}
-      {me.role === "parent" && me.children && me.children.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card/90 p-3 shadow-card">
-          <span className="text-xs font-bold text-muted-foreground ml-2">تقويم الطالب:</span>
-          {me.children.map((child) => {
-            const isSelected = me.activeChild?.id === child.id;
-            const childCls = s.classes.find((c) => c.id === child.classId);
-            return (
-              <Button
-                key={child.id}
-                type="button"
-                variant={isSelected ? "default" : "outline"}
-                size="sm"
-                onClick={() => setActiveChild(child.id)}
-                className={cn(
-                  "rounded-full text-xs font-bold transition-all",
-                  isSelected && "bg-navy text-gold shadow-sm",
-                )}
-              >
-                {child.name} ({childCls?.name ?? child.classId})
-              </Button>
-            );
-          })}
-        </div>
-      )}
 
-      {/* Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
         <div className="flex flex-wrap items-center gap-2">
           {[

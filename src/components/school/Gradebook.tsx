@@ -27,7 +27,7 @@ export function calculateGradeLetter(total: number): { letter: string; label: st
   return { letter: "هـ", label: "يحتاج لمتابعة", tone: "danger" };
 }
 
-/** Official Clean Academic Report Card for Students and Parents */
+/** Official clean academic report card for students and teaching staff. */
 export function StudentReportCard({
   student,
   grades,

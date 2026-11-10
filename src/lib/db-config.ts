@@ -21,8 +21,6 @@ export const DB_CONFIG = {
   DATA_MODE: "local" as DataMode,
   URL: "", // e.g. https://xxxxxxxx.supabase.co
   ANON_KEY: "", // public anon key
-  /** Storage bucket used for uploaded payment receipts. */
-  RECEIPTS_BUCKET: "payment-receipts",
 };
 
 export const TABLES = {
@@ -31,7 +29,6 @@ export const TABLES = {
   teachers: "teachers",
   installments: "installments",
   payments: "payments",
-  receipts: "payment_receipts",
   announcements: "announcements",
   slots: "timetable_slots",
   homework: "homework",

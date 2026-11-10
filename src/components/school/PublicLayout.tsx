@@ -23,16 +23,16 @@ export const CONTACT = {
   hours: "الأحد - الخميس: 7:30 ص - 2:00 م",
 };
 
-export function PublicLayout({ children }: { children: ReactNode }) {
+export function PublicLayout({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
+        <div className={`mx-auto flex ${compact ? "h-14 max-w-5xl justify-center" : "h-16 max-w-6xl justify-between"} items-center gap-3 px-4`}>
           <Link to="/">
             <Logo />
           </Link>
-          <nav className="hidden items-center gap-1 lg:flex">
+          {!compact && <nav className="hidden items-center gap-1 lg:flex">
             {publicLinks.map((l) => (
               <Link
                 key={l.to}
@@ -43,8 +43,8 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 {l.label}
               </Link>
             ))}
-          </nav>
-          <div className="flex items-center gap-2">
+          </nav>}
+          {!compact && <div className="flex items-center gap-2">
             <ThemeToggle />
             <Button asChild className="hidden sm:inline-flex">
               <Link to="/login">
@@ -86,7 +86,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 </nav>
               </SheetContent>
             </Sheet>
-          </div>
+          </div>}
         </div>
       </header>
       <main>{children}</main>
