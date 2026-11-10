@@ -74,7 +74,7 @@ export function StudentReportCard({
             </h3>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {cls?.stage} — {cls?.name} · العام الدراسي ٢٠٢٥ - ٢٠٢٦ (الفصل الدراسي الأول)
+            {cls?.stageId} — {cls?.name} · العام الدراسي ٢٠٢٥ - ٢٠٢٦ (الفصل الدراسي الأول)
           </p>
         </div>
 

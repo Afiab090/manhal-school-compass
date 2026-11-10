@@ -4,20 +4,19 @@ import {
   Building2,
   CheckCircle2,
   Clock,
+  Download,
   FileCheck2,
+  FileSpreadsheet,
   Plus,
   Receipt as ReceiptIcon,
   Search,
-  Upload,
-  UserCheck,
   Wallet,
-  XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { EmptyState, PageHeader, Panel, ProgressBar, StatCard } from "@/components/school/bits";
-import { compressImage } from "@/components/school/shared";
+import { ImportDialog } from "@/components/school/ImportDialog";
 import { useMe } from "@/components/school/useMe";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,20 +29,16 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { downloadCsvTemplate } from "@/lib/school/import";
 import {
-  collectionRate,
   feeSummary,
   formatDate,
   formatMoney,
   installmentStatuses,
+  stageFinancialSummary,
 } from "@/lib/school/logic";
-import {
-  recordPayment,
-  reviewReceipt,
-  setActiveChild,
-  submitReceipt,
-} from "@/lib/school/store";
-import type { Student } from "@/lib/school/types";
+import { importFees, recordPayment } from "@/lib/school/store";
+import type { StageId, Student } from "@/lib/school/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/fees")({
@@ -56,296 +51,139 @@ function FeesPage() {
   return <StudentFeesView />;
 }
 
+/* =========================================================================
+   1. STUDENT FEES VIEW
+   ========================================================================= */
+
 function StudentFeesView() {
   const { s, me } = useMe();
-  const fallbackStudent: Student = {
-    id: "s1",
-    name: "أحمد محمد عبدالله",
-    academicId: "MNH-2026-0314",
-    classId: "c3a",
-    parentName: "محمد عبدالله أحمد",
-    parentPhone: "0912 777 314",
-    totalFees: 900000,
-  };
-  const st: Student =
-    me.role === "student"
-      ? me.student
-      : me.role === "parent"
-        ? (me.activeChild || s.students[0] || fallbackStudent)
-        : (s.students[0] ?? fallbackStudent);
 
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [reference, setReference] = useState("");
-  const [transactionId, setTransactionId] = useState("");
-  const [note, setNote] = useState("");
-  const [image, setImage] = useState<string | undefined>(undefined);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const st: Student | null = me.role === "student" ? me.student : s.students[0] ?? null;
 
   const summary = useMemo(() => {
+    if (!st) return null;
     return feeSummary(st, s.payments, s.installments);
   }, [st, s.payments, s.installments]);
 
   const installments = useMemo(() => {
+    if (!st) return [];
     return installmentStatuses(st.id, s.payments, s.installments, new Date().toISOString().slice(0, 10));
-  }, [st.id, s.payments, s.installments]);
+  }, [st, s.payments, s.installments]);
 
   const studentPayments = useMemo(() => {
+    if (!st) return [];
     return s.payments
       .filter((p) => p.studentId === st.id)
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [s.payments, st.id]);
+  }, [st, s.payments]);
 
-  const studentReceipts = useMemo(() => {
-    return s.receipts
-      .filter((r) => r.studentId === st.id)
-      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
-  }, [s.receipts, st.id]);
+  if (!st || !summary) {
+    return <EmptyState icon={Wallet} title="لا توجد بيانات رسوم دراسية" />;
+  }
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const compressed = await compressImage(file);
-        setImage(compressed);
-        toast.success("تم تجهيز صورة الإشعار");
-      } catch (err) {
-        toast.error("تعذر قراءة الصورة، يرجى اختيار ملف صالح");
-      }
-    }
-  };
-
-  const handleSubmitReceipt = (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsedAmount = Number(amount);
-    if (!parsedAmount || parsedAmount <= 0) {
-      toast.error("يرجى إدخال مبلغ صحيح");
-      return;
-    }
-    if (!reference.trim()) {
-      toast.error("يرجى كتابة رقم المرجع أو المعاملة البنكية");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const receiptPayload: {
-        studentId: string;
-        reference: string;
-        transactionId?: string;
-        bankName?: string;
-        senderAccount?: string;
-        amount: number;
-        image?: string;
-        note?: string;
-      } = {
-        studentId: st.id,
-        amount: parsedAmount,
-        reference: reference.trim(),
-        bankName: "بنكك (بنك الخرطوم)",
-        senderAccount: st.parentPhone,
-      };
-      if (transactionId.trim()) receiptPayload.transactionId = transactionId.trim();
-      if (note.trim()) receiptPayload.note = note.trim();
-      if (image) receiptPayload.image = image;
-
-      submitReceipt(receiptPayload);
-      toast.success("تم إرسال إشعار الدفع بنجاح وهو قيد المراجعة والاعتماد");
-      setUploadDialogOpen(false);
-      setAmount("");
-      setReference("");
-      setNote("");
-      setImage(undefined);
-    } catch (e: any) {
-      toast.error(e.message || "حدث خطأ أثناء إرسال الإشعار");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const cls = s.classes.find((c) => c.id === st.classId);
 
   return (
     <div className="animate-rise space-y-6">
       <PageHeader
-        title="الرسوم الدراسية والمدفوعات"
-        subtitle={`متابعة الأقساط المدرسية وسجل السداد وإرفاق إشعارات التحويل — ${st.name}`}
+        title="الرسوم الدراسية وسندات السداد"
+        subtitle={`متابعة الأقساط المقررة والمدفوعات والإيصالات الرسمية — ${st.name} (${cls?.name ?? ""})`}
         icon={Wallet}
-        action={
-          <Button
-            onClick={() => setUploadDialogOpen(true)}
-            className="gap-2 bg-primary hover:bg-navy font-bold"
-          >
-            <Upload className="h-4 w-4" />
-            إرفاق إشعار تحويل بنكي
-          </Button>
-        }
       />
 
-      {/* Multi-child switcher for parents */}
-      {me.role === "parent" && me.children.length > 1 && (
-        <div className="flex items-center gap-2 p-3 bg-card border rounded-2xl shadow-card overflow-x-auto no-scrollbar">
-          <span className="text-xs font-bold text-muted-foreground shrink-0">متابعة رسوم الابن:</span>
-          {me.children.map((child) => {
-            const isSelected = child.id === st.id;
-            return (
-              <button
-                key={child.id}
-                type="button"
-                onClick={() => {
-                  setActiveChild(child.id);
-                  toast.success(`تم اختيار متابعة رسوم: ${child.name}`);
-                }}
-                className={cn(
-                  "px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 border",
-                  isSelected
-                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                    : "bg-muted/40 border-border text-foreground hover:bg-muted",
-                )}
-              >
-                {child.name.split(" ").slice(0, 2).join(" ")}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Overview Card */}
-      <div className="relative overflow-hidden rounded-3xl bg-hero p-5 text-hero-foreground shadow-elevated">
-        <div className="pattern-geo absolute inset-0 opacity-40" />
-        <div className="relative">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <span className="text-xs text-hero-foreground/75">إجمالي الرسوم السنوية المقررة</span>
-              <div className="font-display text-2xl sm:text-3xl font-extrabold mt-1">
-                {formatMoney(summary.total)}
-              </div>
-            </div>
-            <Badge className="bg-gold text-navy font-bold text-sm px-3 py-1">
-              مسدد {summary.percent.toLocaleString("ar-EG")}٪
-            </Badge>
-          </div>
-
-          <ProgressBar value={summary.percent} className="my-4 h-2.5 bg-hero-foreground/20" />
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl bg-hero-foreground/10 p-3">
-              <span className="text-xs text-hero-foreground/70">المبلغ المسدد</span>
-              <div className="font-bold text-lg mt-0.5 text-emerald-300">
-                {formatMoney(summary.paid)}
-              </div>
-            </div>
-            <div className="rounded-2xl bg-hero-foreground/10 p-3">
-              <span className="text-xs text-hero-foreground/70">المبلغ المتبقي</span>
-              <div className="font-bold text-lg mt-0.5 text-amber-300">
-                {formatMoney(summary.remaining)}
-              </div>
-            </div>
-            <div className="col-span-2 sm:col-span-1 rounded-2xl bg-hero-foreground/10 p-3">
-              <span className="text-xs text-hero-foreground/70">القسط المستحق القادم</span>
-              <div className="font-bold text-sm mt-0.5">
-                {summary.nextDue ? (
-                  <span>{summary.nextDue.title} ({formatMoney(summary.nextDue.amount)})</span>
-                ) : (
-                  <span className="text-emerald-300">تم سداد كامل الأقساط ✓</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          label="إجمالي الرسوم المقررة"
+          value={formatMoney(summary.total)}
+          icon={Wallet}
+          hint="العام الدراسي الحالي"
+        />
+        <StatCard
+          label="المبلغ المسدد"
+          value={formatMoney(summary.paid)}
+          icon={CheckCircle2}
+          tone="success"
+          hint={`نسبة السداد: ${summary.percent}٪`}
+        />
+        <StatCard
+          label="المتبقي للتحصيل"
+          value={formatMoney(summary.remaining)}
+          icon={AlertCircle}
+          tone={summary.remaining === 0 ? "success" : "warning"}
+          hint={summary.remaining === 0 ? "تم السداد بالكامل" : "أقساط مستحقة"}
+        />
+        <StatCard
+          label="القسط القادم"
+          value={summary.nextDue ? formatMoney(summary.nextDue.amount) : "لا يوجد"}
+          icon={Clock}
+          tone="gold"
+          hint={summary.nextDue ? `استحقاق ${formatDate(summary.nextDue.dueDate)}` : "لا توجد متأخرات"}
+        />
       </div>
+
+      {/* Progress Bar */}
+      <Panel className="space-y-3">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-bold text-navy">نسبة إنجاز سداد الرسوم السنوية</span>
+          <span className="font-mono font-bold text-foreground">{summary.percent}٪</span>
+        </div>
+        <ProgressBar value={summary.percent} />
+      </Panel>
 
       {/* Installments Breakdown */}
       <Panel className="space-y-4">
         <h2 className="font-display text-lg font-bold text-navy flex items-center gap-2">
-          <ReceiptIcon className="h-5 w-5 text-gold" />
-          جدول الأقساط الدراسية
+          <Building2 className="h-5 w-5 text-gold" />
+          جدول الأقساط الدراسية المستحقة
         </h2>
 
-        <div className="space-y-3">
-          {installments.map(({ installment, status, covered }) => {
+        <div className="grid gap-3 sm:grid-cols-3">
+          {installments.map(({ installment: inst, status, covered }) => {
             const isPaid = status === "paid";
             const isOverdue = status === "overdue";
             const isPartial = status === "partial";
 
             return (
               <div
-                key={installment.id}
+                key={inst.id}
                 className={cn(
-                  "flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border p-4 transition-all",
-                  isPaid && "bg-muted/30 border-muted",
+                  "flex flex-col justify-between rounded-2xl border bg-card p-4 shadow-card transition-all",
+                  isPaid && "border-success/40 bg-success-soft/10",
                   isOverdue && "border-destructive/40 bg-danger-soft/20",
-                  isPartial && "border-amber-400/40 bg-warning-soft/20",
-                  status === "due" && "border-border bg-card",
+                  isPartial && "border-gold/40 bg-gold-soft/15",
                 )}
               >
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-foreground">{installment.title}</span>
-                    {isPaid && <Badge variant="success">مسدد بالكامل</Badge>}
-                    {isOverdue && <Badge variant="danger">متأخر عن السداد</Badge>}
-                    {isPartial && <Badge variant="warning">مدفوع جزئياً</Badge>}
-                    {status === "due" && <Badge variant="outline">مستحق</Badge>}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="font-bold text-sm text-foreground">{inst.title}</span>
+                    <Badge
+                      variant={isPaid ? "success" : isOverdue ? "destructive" : "gold"}
+                      className="text-[11px] font-bold"
+                    >
+                      {isPaid ? "مسدد بالكامل" : isOverdue ? "متأخر" : isPartial ? "مسدد جزئياً" : "مستحق"}
+                    </Badge>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                    <span>تاريخ الاستحقاق: {formatDate(installment.dueDate)}</span>
-                    {covered > 0 && covered < installment.amount && (
-                      <span>· تم دفع: {formatMoney(covered)}</span>
-                    )}
+
+                  <div className="text-xl font-extrabold text-navy font-mono">
+                    {formatMoney(inst.amount)}
+                  </div>
+
+                  <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5 text-gold" />
+                    <span>تاريخ الاستحقاق: {formatDate(inst.dueDate)}</span>
                   </div>
                 </div>
 
-                <div className="text-end">
-                  <div className="font-extrabold text-foreground text-lg">
-                    {formatMoney(installment.amount)}
-                  </div>
+                <div className="mt-3 pt-3 border-t text-xs flex justify-between items-center text-muted-foreground">
+                  <span>المغطى من القسط:</span>
+                  <span className="font-mono font-bold text-foreground">{formatMoney(covered)}</span>
                 </div>
               </div>
             );
           })}
         </div>
       </Panel>
-
-      {/* Submitted Receipts (Pending review) */}
-      {studentReceipts.length > 0 && (
-        <Panel className="space-y-3">
-          <h2 className="font-display text-lg font-bold text-navy flex items-center gap-2">
-            <Clock className="h-5 w-5 text-gold" />
-            إشعارات التحويل المرفقة
-          </h2>
-          <div className="space-y-2">
-            {studentReceipts.map((r) => (
-              <div
-                key={r.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-foreground">{formatMoney(r.amount)}</span>
-                    {r.status === "pending" && (
-                      <Badge variant="warning" className="gap-1">
-                        <Clock className="h-3 w-3" /> قيد المراجعة
-                      </Badge>
-                    )}
-                    {r.status === "approved" && (
-                      <Badge variant="success" className="gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> تم الاعتماد
-                      </Badge>
-                    )}
-                    {r.status === "rejected" && (
-                      <Badge variant="danger" className="gap-1">
-                        <XCircle className="h-3 w-3" /> مرفوض
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    مرجع التحويل: <span dir="ltr" className="font-mono font-bold">{r.reference}</span> · بتاريخ {formatDate(r.submittedAt)}
-                  </div>
-                  {r.note && <div className="text-xs text-foreground/80 mt-1">{r.note}</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
 
       {/* Official Receipts & Payment History */}
       <Panel className="space-y-4">
@@ -385,111 +223,69 @@ function StudentFeesView() {
           </div>
         )}
       </Panel>
-
-      {/* Upload Receipt Modal */}
-      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>إرفاق إشعار تحويل بنكي</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmitReceipt} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>المبلغ المحوّل (ج.س)</Label>
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="مثال: 250000"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>رقم الإشعار / المرجع البنكي (بنكك / فوري)</Label>
-              <Input
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                placeholder="مثال: BOK-89234120"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>رقم العملية المرجعي لتطبيق بنكك (Transaction ID)</Label>
-              <Input
-                value={transactionId}
-                onChange={(e) => setTransactionId(e.target.value)}
-                placeholder="مثال: TRX-BOK-98471203"
-                dir="ltr"
-                className="font-mono text-xs"
-              />
-              <span className="text-[11px] text-muted-foreground block">
-                الرقم المرجعي المكون من أرقام والموجود أسفل إشعار بنكك لسرعة المطابقة والاعتماد
-              </span>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>ملاحظات إضافية</Label>
-              <Input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="مثال: سداد القسط الثاني عن طريق بنكك"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>صورة الإشعار (اختياري)</Label>
-              <Input type="file" accept="image/*" onChange={handleImageChange} />
-              {image && (
-                <div className="mt-2 text-xs text-success flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> تم تجهيز الصورة بنجاح
-                </div>
-              )}
-            </div>
-
-            <DialogFooter className="mt-4 gap-2">
-              <Button type="button" variant="outline" onClick={() => setUploadDialogOpen(false)}>
-                إلغاء
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "جاري الإرسال..." : "إرسال الإشعار للمراجعة"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
 
+/* =========================================================================
+   2. ADMIN FEES VIEW
+   ========================================================================= */
+
+const FEES_REQUIRED_COLUMNS = [
+  "الرقم الأكاديمي",
+  "اسم القسط",
+  "المبلغ المقرر",
+  "تاريخ الاستحقاق",
+  "المبلغ المدفوع",
+  "تاريخ الدفع",
+  "رقم الإيصال",
+];
+
+const FEES_TEMPLATE_HEADERS = [
+  "الرقم الأكاديمي",
+  "اسم القسط",
+  "المبلغ المقرر",
+  "تاريخ الاستحقاق",
+  "المبلغ المدفوع",
+  "تاريخ الدفع",
+  "رقم الإيصال",
+];
+
+const FEES_SAMPLE_ROWS = [
+  ["STD-SEC-1001", "القسط الأول (التسجيل)", "300000", "2025-09-15", "300000", "2025-09-10", "RC-2025-101"],
+  ["STD-SEC-1002", "القسط الثاني (منتصف العام)", "250000", "2025-11-20", "150000", "2025-11-18", "RC-2025-102"],
+];
+
 function AdminFeesView() {
-  const { s } = useMe();
+  const { s, me } = useMe();
+  const currentStage: StageId = me.stageId || "المرحلة الثانوية";
+
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [recordDialogOpen, setRecordDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+
+  // Filter students for current stage
+  const stageClasses = useMemo(() => s.classes.filter((c) => c.stageId === currentStage), [s.classes, currentStage]);
+  const stageClassIds = useMemo(() => new Set(stageClasses.map((c) => c.id)), [stageClasses]);
+
+  const stageStudents = useMemo(() => {
+    return s.students.filter((st) => stageClassIds.has(st.classId));
+  }, [s.students, stageClassIds]);
+
+  // Stage-scoped financial summary
+  const stats = useMemo(() => {
+    return stageFinancialSummary(stageStudents, s.payments);
+  }, [stageStudents, s.payments]);
 
   // Direct payment recording form state
-  const [payStudentId, setPayStudentId] = useState<string>(s.students[0]?.id || "");
+  const [payStudentId, setPayStudentId] = useState<string>(stageStudents[0]?.id || "");
   const [payAmount, setPayAmount] = useState<string>("");
   const [payMethod, setPayMethod] = useState<string>("نقداً - خزينة المدرسة");
-
-  const pendingReceipts = useMemo(() => {
-    return s.receipts.filter((r) => r.status === "pending");
-  }, [s.receipts]);
-
-  const rate = useMemo(() => collectionRate(s.students, s.payments), [s.students, s.payments]);
-
-  const totalExpected = useMemo(() => {
-    return s.students.reduce((sum, st) => sum + st.totalFees, 0);
-  }, [s.students]);
-
-  const totalCollected = useMemo(() => {
-    const studentIds = new Set(s.students.map((st) => st.id));
-    return s.payments.filter((p) => studentIds.has(p.studentId)).reduce((sum, p) => sum + p.amount, 0);
-  }, [s.students, s.payments]);
+  const [payReceiptNo, setPayReceiptNo] = useState<string>("");
 
   const filteredStudents = useMemo(() => {
-    return s.students.filter((st) => {
+    return stageStudents.filter((st) => {
       const matchClass = selectedClassFilter === "all" || st.classId === selectedClassFilter;
       const matchQuery =
         !searchQuery.trim() ||
@@ -497,7 +293,7 @@ function AdminFeesView() {
         st.academicId.toLowerCase().includes(searchQuery.toLowerCase());
       return matchClass && matchQuery;
     });
-  }, [s.students, selectedClassFilter, searchQuery]);
+  }, [stageStudents, selectedClassFilter, searchQuery]);
 
   const handleRecordPayment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -506,226 +302,209 @@ function AdminFeesView() {
       toast.error("يرجى إدخال مبلغ صحيح");
       return;
     }
-    recordPayment(payStudentId, parsed, payMethod);
+    recordPayment(payStudentId, parsed, payMethod, payReceiptNo.trim() || undefined);
     toast.success("تم تسجيل سند القبض وإصدار الإيصال المالي بنجاح");
     setRecordDialogOpen(false);
     setPayAmount("");
+    setPayReceiptNo("");
+  };
+
+  const handleConfirmImport = async (validRows: Record<string, string>[]) => {
+    const payload = validRows.map((row) => ({
+      academicId: row["الرقم الأكاديمي"] || "",
+      installmentTitle: row["اسم القسط"] || "قسط دراسي",
+      installmentAmount: Number(row["المبلغ المقرر"]) || 0,
+      dueDate: row["تاريخ الاستحقاق"] || "2025-10-01",
+      paidAmount: row["المبلغ المدفوع"] ? Number(row["المبلغ المدفوع"]) : undefined,
+      paymentDate: row["تاريخ الدفع"] || undefined,
+      receiptNo: row["رقم الإيصال"] || undefined,
+    }));
+
+    const result = importFees(payload);
+    if (result.errors.length > 0) {
+      toast.warning(`تم الاستيراد مع وجود ${result.errors.length} تنبيهاً`);
+    }
+    return {
+      added: result.addedInstallments + result.addedPayments,
+      updated: 0,
+      ignored: result.errors.length,
+    };
   };
 
   return (
     <div className="animate-rise space-y-6">
       <PageHeader
         title="إدارة الرسوم والتحصيل المالي"
-        subtitle="حصر الرسوم الدراسية، مراجعة إشعارات البنوك، وتسجيل سندات القبض لجميع الفصول"
+        subtitle={`حصر الرسوم الدراسية ومتابعة التحصيل وإصدار سندات القبض — ${currentStage}`}
         icon={Wallet}
         action={
-          <Button
-            onClick={() => setRecordDialogOpen(true)}
-            className="gap-2 bg-primary hover:bg-navy font-bold"
-          >
-            <Plus className="h-4 w-4" />
-            تسجيل سند قبض مالي
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => downloadCsvTemplate("نموذج_استيراد_الرسوم.csv", FEES_TEMPLATE_HEADERS, FEES_SAMPLE_ROWS)}
+              className="gap-2 font-bold text-xs"
+            >
+              <Download className="h-4 w-4" />
+              تحميل نموذج CSV
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setImportDialogOpen(true)}
+              className="gap-2 font-bold text-xs border-gold text-navy hover:bg-gold-soft"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-gold" />
+              استيراد من Excel أو CSV
+            </Button>
+            <Button
+              onClick={() => setRecordDialogOpen(true)}
+              className="gap-2 bg-primary hover:bg-navy font-bold text-xs"
+            >
+              <Plus className="h-4 w-4" />
+              تسجيل سند قبض
+            </Button>
+          </div>
         }
       />
 
       {/* Financial Overview Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
-          label="نسبة التحصيل العامة"
-          value={`${rate.toLocaleString("ar-EG")}٪`}
+          label="نسبة التحصيل بالمرحلة"
+          value={`${stats.collectionRate}٪`}
           icon={Wallet}
           tone="gold"
-          hint={`إجمالي الطلاب ${s.students.length}`}
+          hint={`إجمالي طلاب المرحلة: ${stageStudents.length}`}
         />
         <StatCard
           label="إجمالي المحصل"
-          value={formatMoney(totalCollected)}
+          value={formatMoney(stats.totalCollected)}
           icon={CheckCircle2}
           tone="success"
+          hint={`المقرر: ${formatMoney(stats.totalRequired)}`}
         />
         <StatCard
           label="المتبقي للتحصيل"
-          value={formatMoney(Math.max(0, totalExpected - totalCollected))}
+          value={formatMoney(stats.totalRemaining)}
           icon={AlertCircle}
-          tone="warning"
+          tone={stats.totalRemaining === 0 ? "success" : "warning"}
+          hint={`نسبة المتبقي: ${stats.remainingRate}٪`}
         />
         <StatCard
-          label="إشعارات معلقة"
-          value={pendingReceipts.length.toLocaleString("ar-EG")}
-          icon={Clock}
-          tone={pendingReceipts.length > 0 ? "danger" : "navy"}
-          hint="بحاجة لاعتماد الإدارة"
+          label="متوسط الرسوم للطالب"
+          value={formatMoney(stageStudents.length > 0 ? Math.round(stats.totalRequired / stageStudents.length) : 0)}
+          icon={Building2}
         />
       </div>
 
-      {/* Pending Receipts Section */}
+      {/* Search and Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">تصفية الفصل:</span>
+          <select
+            value={selectedClassFilter}
+            onChange={(e) => setSelectedClassFilter(e.target.value)}
+            className="h-9 rounded-lg border border-input bg-card px-3 text-xs font-bold text-foreground focus:outline-none"
+          >
+            <option value="all">كافة فصول {currentStage}</option>
+            {stageClasses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute end-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="بحث باسم الطالب أو رقمه الأكاديمي..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-9 pe-8 text-xs"
+          />
+        </div>
+      </div>
+
+      {/* Students Fee Ledger Table */}
       <Panel className="space-y-4">
-        <div className="flex items-center justify-between border-b pb-3">
+        <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-bold text-navy flex items-center gap-2">
-            <Clock className="h-5 w-5 text-gold" />
-            إشعارات الدفع بانتظار المراجعة والاعتماد ({pendingReceipts.length})
+            <Building2 className="h-5 w-5 text-gold" />
+            كشف سداد الطلاب ({filteredStudents.length} طالباً)
           </h2>
         </div>
 
-        {pendingReceipts.length === 0 ? (
-          <EmptyState
-            icon={FileCheck2}
-            title="لا توجد إشعارات دفع معلقة"
-            text="تمت مراجعة واعتماد جميع إشعارات التحويل الواردة"
-          />
+        {filteredStudents.length === 0 ? (
+          <EmptyState icon={Search} title="لا توجد نتائج مطابقة" />
         ) : (
-          <div className="space-y-3">
-            {pendingReceipts.map((r) => {
-              const st = s.students.find((x) => x.id === r.studentId);
-              const cls = s.classes.find((c) => c.id === st?.classId);
+          <div className="overflow-x-auto">
+            <table className="w-full text-start text-xs">
+              <thead>
+                <tr className="border-b bg-muted/40 text-muted-foreground font-bold">
+                  <th className="py-3 px-3 text-start">الرقم الأكاديمي</th>
+                  <th className="py-3 px-3 text-start">اسم الطالب</th>
+                  <th className="py-3 px-3 text-start">الفصل</th>
+                  <th className="py-3 px-3 text-start">المقرر السنوي</th>
+                  <th className="py-3 px-3 text-start">المسدد</th>
+                  <th className="py-3 px-3 text-start">المتبقي</th>
+                  <th className="py-3 px-3 text-center">نسبة السداد</th>
+                  <th className="py-3 px-3 text-center">الإجراء</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredStudents.map((st) => {
+                  const summ = feeSummary(st, s.payments, s.installments);
+                  const cls = s.classes.find((c) => c.id === st.classId);
 
-              return (
-                <div
-                  key={r.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-sm"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-base text-foreground">{st?.name}</span>
-                      <Badge variant="outline">{cls?.name}</Badge>
-                      <Badge variant="gold" className="font-mono text-xs">
-                        {formatMoney(r.amount)}
-                      </Badge>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap items-center gap-2.5">
-                      <span>المرجع: <span dir="ltr" className="font-mono font-bold text-foreground">{r.reference}</span></span>
-                      {r.transactionId && (
-                        <span className="bg-gold-soft px-2 py-0.5 rounded font-mono text-navy font-bold text-[11px]" dir="ltr">
-                          رقم بنكك: {r.transactionId}
-                        </span>
-                      )}
-                      <span>·</span>
-                      <span>بتاريخ: {formatDate(r.submittedAt)}</span>
-                      {r.auditStatus && (
-                        <Badge variant={r.auditStatus === "verified_match" ? "success" : "warning"} className="text-[10px]">
-                          {r.auditStatus === "verified_match" ? "مطابق للمصرف" : "قيد التدقيق"}
+                  return (
+                    <tr key={st.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-3 px-3 font-mono font-bold text-navy">{st.academicId}</td>
+                      <td className="py-3 px-3 font-bold text-foreground">{st.name}</td>
+                      <td className="py-3 px-3 text-muted-foreground font-semibold">{cls?.name}</td>
+                      <td className="py-3 px-3 font-mono font-semibold">{formatMoney(summ.total)}</td>
+                      <td className="py-3 px-3 font-mono font-bold text-success">{formatMoney(summ.paid)}</td>
+                      <td
+                        className={cn(
+                          "py-3 px-3 font-mono font-bold",
+                          summ.remaining > 0 ? "text-destructive" : "text-muted-foreground",
+                        )}
+                      >
+                        {formatMoney(summ.remaining)}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <Badge
+                          variant={summ.percent >= 100 ? "success" : summ.percent > 0 ? "gold" : "destructive"}
+                          className="font-mono text-[11px]"
+                        >
+                          {summ.percent}٪
                         </Badge>
-                      )}
-                      {r.note && <span>· ملاحظة: {r.note}</span>}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <Button
-                      size="sm"
-                      variant="success"
-                      onClick={() => {
-                        reviewReceipt(r.id, "approved");
-                        toast.success(`تم اعتماد إشعار الطالب ${st?.name}`);
-                      }}
-                      className="gap-1 text-xs font-bold"
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      اعتماد
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        reviewReceipt(r.id, "rejected");
-                        toast.error(`تم رفض إشعار الطالب ${st?.name}`);
-                      }}
-                      className="gap-1 text-xs text-destructive hover:bg-danger-soft"
-                    >
-                      <XCircle className="h-3.5 w-3.5" />
-                      رفض
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setPayStudentId(st.id);
+                            setPayAmount(String(summ.remaining > 0 ? summ.remaining : 100000));
+                            setRecordDialogOpen(true);
+                          }}
+                          className="h-7 text-xs font-bold gap-1"
+                        >
+                          <Plus className="h-3 w-3" />
+                          قبض
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </Panel>
 
-      {/* Students Tuition Status Roster */}
-      <Panel className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
-          <div>
-            <h2 className="font-display text-lg font-bold text-navy">حالة سداد رسوم الطلاب</h2>
-            <p className="text-xs text-muted-foreground">
-              متابعة موقف الرسوم لكل طالب في كافة الفصول الدراسية
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={selectedClassFilter}
-              onChange={(e) => setSelectedClassFilter(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-background px-3 text-xs font-bold text-foreground focus:outline-none"
-            >
-              <option value="all">جميع الفصول الدراسية</option>
-              {s.classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-
-            <div className="relative">
-              <Search className="absolute end-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="بحث بالاسم أو الرقم..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9 w-44 pe-8 text-xs"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-start text-sm">
-            <thead>
-              <tr className="border-b text-xs text-muted-foreground">
-                <th className="py-2.5 px-3 text-start">الطالب</th>
-                <th className="py-2.5 px-3 text-start">الفصل</th>
-                <th className="py-2.5 px-3 text-start">إجمالي الرسوم</th>
-                <th className="py-2.5 px-3 text-start">المسدد</th>
-                <th className="py-2.5 px-3 text-start">المتبقي</th>
-                <th className="py-2.5 px-3 text-start">الحالة</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filteredStudents.map((st) => {
-                const sum = feeSummary(st, s.payments, s.installments);
-                const cls = s.classes.find((c) => c.id === st.classId);
-                const isFull = sum.remaining === 0;
-                const isOverdue = sum.nextDue && sum.nextDue.dueDate < new Date().toISOString().slice(0, 10);
-
-                return (
-                  <tr key={st.id} className="hover:bg-muted/40 transition-colors">
-                    <td className="py-3 px-3">
-                      <div className="font-bold text-foreground">{st.name}</div>
-                      <div className="text-xs text-muted-foreground" dir="ltr">
-                        {st.academicId}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-xs text-muted-foreground">{cls?.name}</td>
-                    <td className="py-3 px-3 font-semibold text-foreground">{formatMoney(sum.total)}</td>
-                    <td className="py-3 px-3 font-bold text-emerald-600">{formatMoney(sum.paid)}</td>
-                    <td className="py-3 px-3 font-bold text-amber-600">{formatMoney(sum.remaining)}</td>
-                    <td className="py-3 px-3">
-                      {isFull && <Badge variant="success">مكتمل</Badge>}
-                      {!isFull && isOverdue && <Badge variant="danger">متأخر</Badge>}
-                      {!isFull && !isOverdue && <Badge variant="warning">قسط متبقي</Badge>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
-
-      {/* Record Direct Payment Dialog */}
+      {/* Record Payment Dialog */}
       <Dialog open={recordDialogOpen} onOpenChange={setRecordDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -733,17 +512,18 @@ function AdminFeesView() {
           </DialogHeader>
           <form onSubmit={handleRecordPayment} className="space-y-4">
             <div className="space-y-1.5">
-              <Label>اختر الطالب</Label>
+              <Label>الطالب</Label>
               <select
                 value={payStudentId}
                 onChange={(e) => setPayStudentId(e.target.value)}
                 className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm font-semibold"
+                required
               >
-                {s.students.map((st) => {
-                  const cls = s.classes.find((c) => c.id === st.classId);
+                {stageStudents.map((st) => {
+                  const c = s.classes.find((x) => x.id === st.classId);
                   return (
                     <option key={st.id} value={st.id}>
-                      {st.name} — ({cls?.name})
+                      {st.name} — ({c?.name ?? ""})
                     </option>
                   );
                 })}
@@ -756,34 +536,64 @@ function AdminFeesView() {
                 type="number"
                 value={payAmount}
                 onChange={(e) => setPayAmount(e.target.value)}
-                placeholder="مثال: 300000"
+                placeholder="مثال: 150000"
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label>طريقة القبض</Label>
+              <Label>طريقة الدفع</Label>
               <select
                 value={payMethod}
                 onChange={(e) => setPayMethod(e.target.value)}
                 className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm font-semibold"
               >
                 <option value="نقداً - خزينة المدرسة">نقداً - خزينة المدرسة</option>
-                <option value="تحويل بنكي - تطبيق بنكك">تحويل بنكي - تطبيق بنكك</option>
-                <option value="تحويل بنكي - تطبيق فوري">تحويل بنكي - تطبيق فوري</option>
+                <option value="تحويل بنكي (بنكك)">تحويل بنكي (بنكك)</option>
+                <option value="تحويل بنكي (فوري - بنك فيصل)">تحويل بنكي (فوري - بنك فيصل)</option>
                 <option value="شيك مصرفي">شيك مصرفي</option>
               </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>رقم الإيصال اليدوي (اختياري)</Label>
+              <Input
+                value={payReceiptNo}
+                onChange={(e) => setPayReceiptNo(e.target.value)}
+                placeholder="اتركه فارغاً للتوليد التلقائي"
+              />
             </div>
 
             <DialogFooter className="mt-4 gap-2">
               <Button type="button" variant="outline" onClick={() => setRecordDialogOpen(false)}>
                 إلغاء
               </Button>
-              <Button type="submit">إصدار السند وتحديث الرسوم</Button>
+              <Button type="submit" className="bg-primary hover:bg-navy font-bold">
+                حفظ وإصدار السند
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Import Fees Modal */}
+      <ImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        title="استيراد كشف الرسوم والأقساط"
+        description="استيراد الأقساط والمدفوعات من ملف Excel أو CSV مع مطابقة الطلاب تلقائياً بالرقم الأكاديمي"
+        requiredColumns={FEES_REQUIRED_COLUMNS}
+        templateFilename="نموذج_استيراد_الرسوم.csv"
+        templateHeaders={FEES_TEMPLATE_HEADERS}
+        templateSampleRows={FEES_SAMPLE_ROWS}
+        rowValidator={(row, idx) => {
+          const errors: string[] = [];
+          if (!row["الرقم الأكاديمي"]?.trim()) errors.push("الرقم الأكاديمي مفقود");
+          if (!row["المبلغ المقرر"] || Number(row["المبلغ المقرر"]) <= 0) errors.push("المبلغ المقرر غير صحيح");
+          return { isValid: errors.length === 0, errors };
+        }}
+        onConfirmImport={handleConfirmImport}
+      />
     </div>
   );
 }

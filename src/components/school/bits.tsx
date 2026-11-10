@@ -57,8 +57,8 @@ export function StatCard({
   label: string;
   value: ReactNode;
   icon: LucideIcon;
-  tone?: "navy" | "gold" | "success" | "warning" | "danger";
-  hint?: string;
+  tone?: "navy" | "gold" | "success" | "warning" | "danger" | undefined;
+  hint?: string | undefined;
 }) {
   const tones = {
     navy: "bg-secondary text-navy",

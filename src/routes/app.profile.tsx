@@ -9,7 +9,6 @@ import {
   UserCheck,
   UserCircle,
   Users,
-  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,6 +19,7 @@ import { ThemeToggle } from "@/components/school/ThemeToggle";
 import { useMe } from "@/components/school/useMe";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DEMO_MODE } from "@/lib/school/seed";
 import {
   demoLogin,
   forceResetDefaultData,
@@ -37,7 +37,7 @@ function ProfilePage() {
   const navigate = useNavigate();
 
   const handleRoleSwitch = (newRole: Role) => {
-    demoLogin(newRole);
+    demoLogin(newRole, me.stageId);
     toast.success(`تم التبديل إلى حساب: ${roleLabel[newRole]}`);
   };
 
@@ -48,43 +48,42 @@ function ProfilePage() {
 
   const st = me.role === "student" ? me.student : null;
   const teacher = me.role === "teacher" ? me.teacher : null;
+  const admin = me.role === "admin" ? me.admin : null;
   const studentClass = st ? s.classes.find((c) => c.id === st.classId) : null;
 
   return (
     <div className="animate-rise space-y-6">
       <PageHeader
-        title="الملف الشخصي وإعدادات الحساب"
-        subtitle="بيانات الحساب المدرسي، التحكم في المظهر، وإعادة تعيين البيانات"
+        title="الملف الشخصي والحساب"
+        subtitle="بيانات الحساب المسجل، المرحلة الدراسية، وإعدادات النظام"
         icon={UserCircle}
       />
 
-      {/* Main Profile Card */}
-      <Panel className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6">
-        <div className="flex items-center gap-4">
-          <Avatar name={me.name} className="h-16 w-16 text-2xl" />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-display text-xl font-bold text-navy">
+      {/* Main Info Card */}
+      <Panel className="p-6">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+          <Avatar name={me.name} className="h-20 w-20 text-2xl shadow-elevated" />
+          <div className="space-y-2 text-center sm:text-start flex-1">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <h2 className="font-display text-2xl font-bold text-navy">
                 {me.role === "teacher" ? "أ. " : ""}{me.name}
-              </span>
-              <Badge className="bg-gold-soft text-navy font-bold text-xs">
-                {roleLabel[me.role]}
+              </h2>
+              <Badge className="bg-gold-soft text-navy border-gold/40 font-bold">
+                {me.role === "admin" ? (admin?.title || roleLabel[me.role]) : roleLabel[me.role]}
+              </Badge>
+              <Badge variant="outline" className="text-muted-foreground font-semibold">
+                {me.stageId}
               </Badge>
             </div>
-            <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-              <Calendar className="h-3.5 w-3.5 text-gold" />
-              <span>العام الدراسي ٢٠٢٥ - ٢٠٢٦ · مدرسة المنهل الثانوية الخاصة</span>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              العام الدراسي الحالي: ٢٠٢٥ - ٢٠٢٦ · الفصل الدراسي الأول
+            </p>
           </div>
         </div>
-      </Panel>
 
-      {/* Detailed Info Card */}
-      <Panel className="space-y-4">
-        <h3 className="font-display text-base font-bold text-navy border-b pb-2">
-          البيانات الأكاديمية والتنظيمية
-        </h3>
+        <div className="my-6 border-t" />
 
+        {/* Detailed Info depending on role */}
         {me.role === "student" && st && (
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
             <div className="rounded-xl border bg-muted/20 p-3">
@@ -114,36 +113,6 @@ function ProfilePage() {
           </div>
         )}
 
-        {me.role === "parent" && me.parent && (
-          <div className="grid gap-3 sm:grid-cols-2 text-sm">
-            <div className="rounded-xl border bg-muted/20 p-3">
-              <span className="text-xs text-muted-foreground block">الرقم الوطني / الهوية</span>
-              <span dir="ltr" className="font-mono font-bold text-foreground text-base">
-                {me.parent.nationalId}
-              </span>
-            </div>
-            <div className="rounded-xl border bg-muted/20 p-3">
-              <span className="text-xs text-muted-foreground block">رقم الهاتف المسجل</span>
-              <span dir="ltr" className="font-mono font-bold text-foreground text-base">
-                {me.parent.phone}
-              </span>
-            </div>
-            <div className="rounded-xl border bg-muted/20 p-3 sm:col-span-2">
-              <span className="text-xs text-muted-foreground block mb-1.5">الأبناء المسجلون في المدرسة ({me.children.length})</span>
-              <div className="flex flex-wrap gap-2">
-                {me.children.map((c) => {
-                  const cls = s.classes.find((x) => x.id === c.classId);
-                  return (
-                    <Badge key={c.id} variant="secondary" className="text-xs py-1 px-2.5 font-bold">
-                      {c.name} · {cls?.name}
-                    </Badge>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
         {me.role === "teacher" && teacher && (
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
             <div className="rounded-xl border bg-muted/20 p-3">
@@ -165,60 +134,72 @@ function ProfilePage() {
               </span>
             </div>
             <div className="rounded-xl border bg-muted/20 p-3">
-              <span className="text-xs text-muted-foreground block">الفصول المسندة</span>
+              <span className="text-xs text-muted-foreground block">المراحل التعليمية المسندة</span>
               <span className="font-bold text-foreground text-base">
-                {teacher.classes?.map((cid) => s.classes.find((c) => c.id === cid)?.short).join("، ") || "كافة الفصول المقررة"}
+                {(teacher.stageIds ?? [me.stageId]).join("، ")}
               </span>
             </div>
           </div>
         )}
 
-        {me.role === "admin" && (
+        {me.role === "admin" && admin && (
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
             <div className="rounded-xl border bg-muted/20 p-3">
               <span className="text-xs text-muted-foreground block">اسم المستخدم</span>
-              <span className="font-mono font-bold text-foreground text-base">admin</span>
+              <span dir="ltr" className="font-mono font-bold text-foreground text-base">
+                {admin.username}
+              </span>
             </div>
             <div className="rounded-xl border bg-muted/20 p-3">
-              <span className="text-xs text-muted-foreground block">المسمى الإداري</span>
-              <span className="font-bold text-foreground text-base">مدير المدرسة والشؤون الأكاديمية</span>
+              <span className="text-xs text-muted-foreground block">المسمى الوظيفي</span>
+              <span className="font-bold text-foreground text-base">
+                {admin.title}
+              </span>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-3 sm:col-span-2">
+              <span className="text-xs text-muted-foreground block">صلاحيات الإدارة</span>
+              <span className="font-bold text-foreground text-base">
+                صلاحية إدارية كاملة لإدارة شؤون الطلاب، هيئة التدريس، الجداول المدرسية، والرسوم
+              </span>
             </div>
           </div>
         )}
       </Panel>
 
-      {/* Quick Role Switcher */}
-      <Panel className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-gold" />
-          <h3 className="font-display text-base font-bold text-navy">
-            تبديل سريع للحساب (للتجربة السريعة)
-          </h3>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          يمكنك الانتقال فوراً بين حسابات الطالب والمعلم والإدارة لاستعراض الصلاحيات المختلفة
-        </p>
+      {/* Quick Role Switcher (Visible in DEMO_MODE) */}
+      {DEMO_MODE && (
+        <Panel className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-gold" />
+            <h3 className="font-display text-base font-bold text-navy">
+              تبديل سريع للحساب (للتجربة السريعة)
+            </h3>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            يمكنك الانتقال فوراً بين حسابات الطالب والمعلم والإدارة لاستعراض الصلاحيات المختلفة
+          </p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {(["student", "parent", "teacher", "admin"] as Role[]).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => handleRoleSwitch(r)}
-              className={cn(
-                "rounded-xl py-2.5 text-xs font-bold transition-all border",
-                me.role === r
-                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                  : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {r === "student" ? "حساب الطالب" : r === "parent" ? "حساب ولي الأمر" : r === "teacher" ? "حساب المعلم" : "حساب الإدارة"}
-            </button>
-          ))}
-        </div>
-      </Panel>
+          <div className="grid grid-cols-3 gap-2">
+            {(["student", "teacher", "admin"] as Role[]).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => handleRoleSwitch(r)}
+                className={cn(
+                  "rounded-xl py-2.5 text-xs font-bold transition-all border",
+                  me.role === r
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {r === "student" ? "حساب الطالب" : r === "teacher" ? "حساب المعلم" : "حساب الإدارة"}
+              </button>
+            ))}
+          </div>
+        </Panel>
+      )}
 
-      {/* Theme Toggle & Reset Data */}
+      {/* Theme Toggle */}
       <Panel className="flex items-center justify-between">
         <div>
           <span className="font-semibold text-foreground text-sm block">المظهر الخارجي للتطبيق</span>
@@ -227,25 +208,31 @@ function ProfilePage() {
         <ThemeToggle />
       </Panel>
 
-      <Panel className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <span className="font-semibold text-foreground text-sm block">
-            تحديث وإعادة ضبط البيانات الافتراضية
-          </span>
-          <span className="text-xs text-muted-foreground">
-            إعادة تحميل بيانات الفصول الدراسية، أساتذة المواد، والطلاب المحدثة
-          </span>
-        </div>
-        <Button variant="outline" onClick={handleReset} className="gap-2 text-xs font-bold">
-          <RotateCcw className="h-3.5 w-3.5 text-gold" />
-          إعادة تعيين البيانات
-        </Button>
-      </Panel>
+      {/* Reset Data (Visible in DEMO_MODE) */}
+      {DEMO_MODE && (
+        <Panel className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="font-semibold text-foreground text-sm block">
+              تحديث وإعادة ضبط البيانات الافتراضية
+            </span>
+            <span className="text-xs text-muted-foreground">
+              إعادة تحميل بيانات الفصول الدراسية، أساتذة المواد، والطلاب المحدثة
+            </span>
+          </div>
+          <Button variant="outline" onClick={handleReset} className="gap-2 text-xs font-bold">
+            <RotateCcw className="h-3.5 w-3.5 text-gold" />
+            إعادة تعيين البيانات
+          </Button>
+        </Panel>
+      )}
 
       <Button
         variant="destructive"
         className="w-full gap-2 font-bold"
-        onClick={() => navigate({ to: "/login" }).then(() => logout())}
+        onClick={() => {
+          logout();
+          navigate({ to: "/" });
+        }}
       >
         <LogOut className="h-4 w-4" />
         تسجيل الخروج من الحساب

@@ -3,8 +3,10 @@ import type {
   AttendanceStatus,
   Installment,
   Payment,
-  Receipt,
+  SchoolClass,
+  Slot,
   Student,
+  Teacher,
 } from "./types";
 
 export const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس"] as const;
@@ -109,6 +111,37 @@ export function collectionRate(
   return total > 0 ? Math.round((paid / total) * 100) : 0;
 }
 
+export interface StageFinancialSummary {
+  totalRequired: number;
+  totalCollected: number;
+  collectionRate: number;
+  totalRemaining: number;
+  remainingRate: number;
+}
+
+export function stageFinancialSummary(
+  students: Pick<Student, "id" | "totalFees" | "status">[],
+  payments: Payment[],
+): StageFinancialSummary {
+  const activeStudents = students.filter((s) => s.status !== "archived");
+  const totalRequired = activeStudents.reduce((sum, s) => sum + s.totalFees, 0);
+  const activeIds = new Set(activeStudents.map((s) => s.id));
+  const totalCollected = payments
+    .filter((p) => activeIds.has(p.studentId))
+    .reduce((sum, p) => sum + p.amount, 0);
+  const totalRemaining = Math.max(0, totalRequired - totalCollected);
+  const collectionRate = totalRequired > 0 ? Math.round((totalCollected / totalRequired) * 100) : 0;
+  const remainingRate = totalRequired > 0 ? Math.round((totalRemaining / totalRequired) * 100) : 0;
+
+  return {
+    totalRequired,
+    totalCollected,
+    collectionRate,
+    totalRemaining,
+    remainingRate,
+  };
+}
+
 export interface AttendanceStats {
   present: number;
   absent: number;
@@ -128,22 +161,76 @@ export function attendanceStats(records: AttendanceRecord[], studentId?: string)
   return { present, absent, late, total, rate };
 }
 
-/** Approving a receipt turns it into a payment; rejecting changes nothing financially. */
-export function approveReceipt(
-  receipt: Receipt,
-  nowISO: string,
-  receiptNo: string,
-): { receipt: Receipt; payment: Payment } {
+export interface TimetableConflictCheck {
+  valid: boolean;
+  hasConflict: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export function detectTimetableConflicts(
+  existingSlots: Slot[],
+  slotToValidate: {
+    id?: string | undefined;
+    classId: string;
+    day: number;
+    period: number;
+    teacherId: string;
+    room: string;
+  },
+  allTeachers: Teacher[],
+  allClasses: SchoolClass[],
+): TimetableConflictCheck {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Exclude the slot itself if editing
+  const otherSlots = existingSlots.filter((s) => s.id !== slotToValidate.id);
+
+  // 1. Teacher conflict: Is the teacher teaching another class in the same day and period?
+  const teacherConflict = otherSlots.find(
+    (s) =>
+      s.day === slotToValidate.day &&
+      s.period === slotToValidate.period &&
+      s.teacherId === slotToValidate.teacherId &&
+      s.classId !== slotToValidate.classId,
+  );
+  if (teacherConflict) {
+    const teacher = allTeachers.find((t) => t.id === slotToValidate.teacherId);
+    const conflictClass = allClasses.find((c) => c.id === teacherConflict.classId);
+    errors.push(
+      `تعارض في جدول المعلم (${teacher?.name ?? "المعلم"}): مرتبط بحصة أخرى مع (${conflictClass?.name ?? teacherConflict.classId}) في نفس اليوم والحصة.`,
+    );
+  }
+
+  // 2. Room conflict: Is the room booked for another class in the same day and period?
+  const roomConflict = otherSlots.find(
+    (s) =>
+      s.day === slotToValidate.day &&
+      s.period === slotToValidate.period &&
+      s.room.trim().toLowerCase() === slotToValidate.room.trim().toLowerCase() &&
+      s.classId !== slotToValidate.classId,
+  );
+  if (roomConflict) {
+    const conflictClass = allClasses.find((c) => c.id === roomConflict.classId);
+    errors.push(
+      `تعارض في القاعة (${slotToValidate.room}): القاعة محجوزة بالفعل لـ (${conflictClass?.name ?? roomConflict.classId}) في نفس اليوم والحصة.`,
+    );
+  }
+
+  // 3. Teacher assignment warning: Is the teacher officially assigned to this class?
+  const teacher = allTeachers.find((t) => t.id === slotToValidate.teacherId);
+  if (teacher && teacher.classes && !teacher.classes.includes(slotToValidate.classId)) {
+    warnings.push(
+      `تنبيه: المعلم (${teacher.name}) غير مسند رسمياً لهذا الفصل في قائمة فصوله.`,
+    );
+  }
+
   return {
-    receipt: { ...receipt, status: "approved", reviewedAt: nowISO },
-    payment: {
-      id: `pay-${receipt.id}`,
-      studentId: receipt.studentId,
-      amount: receipt.amount,
-      date: nowISO.slice(0, 10),
-      method: "تحويل بنكي (إشعار مرفق)",
-      receiptNo,
-    },
+    valid: errors.length === 0,
+    hasConflict: errors.length > 0,
+    errors,
+    warnings,
   };
 }
 

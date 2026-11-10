@@ -1,36 +1,27 @@
 import { useSyncExternalStore } from "react";
 
-import { approveReceipt, toISODate, uid } from "./logic";
+import { toISODate, uid } from "./logic";
 import { DEMO, SEED_VERSION, createSeed } from "./seed";
 import type {
-  AcademicSection,
-  AcademicStage,
-  AcademicYearConfig,
   Announcement,
   AppNotification,
   AttendanceStatus,
   BehaviorRecord,
   CalendarEvent,
   GradeEntry,
-  GradeLevel,
   Homework,
-  Parent,
-  Receipt,
-  ReceiptAuditStatus,
+  Installment,
+  Payment,
   Role,
   SchoolClass,
   SchoolState,
   Slot,
+  StageId,
   Student,
   Teacher,
 } from "./types";
 
-/**
- * Local-first store. Everything lives in localStorage under one key so that
- * actions from one role (admin, teacher, student, parent) are visible to the others
- * immediately — and across browser tabs via the `storage` event.
- */
-const KEY = "almanhal-school-state-v3";
+const KEY = "almanhal-school-state-v5";
 
 let state: SchoolState | null = null;
 let serverSnapshot: SchoolState | null = null;
@@ -61,7 +52,7 @@ function persist() {
     window.localStorage.setItem(KEY, JSON.stringify(state));
   } catch (e) {
     console.warn("تعذر حفظ البيانات محلياً", e);
-    throw new Error("مساحة التخزين ممتلئة — جرّب صورة أصغر حجماً");
+    throw new Error("مساحة التخزين ممتلئة — يرجى تفريغ بعض المساحة");
   }
 }
 
@@ -119,30 +110,94 @@ function notify(s: SchoolState, n: Omit<AppNotification, "id" | "date" | "readBy
 
 /* ---------------- Session & Authentication ---------------- */
 
-export function login(role: Role, identifier: string, password: string): { ok: true } | { ok: false; error: string } {
+export function login(
+  role: Role,
+  identifier: string,
+  password: string,
+  stageId: StageId,
+): { ok: true } | { ok: false; error: string } {
   const s = load();
   const id = identifier.trim();
   if (password !== DEMO.password) return { ok: false, error: "كلمة المرور غير صحيحة" };
+
   let userId: string | undefined;
-  if (role === "student") userId = s.students.find((x) => x.academicId.toLowerCase() === id.toLowerCase())?.id;
-  if (role === "parent") userId = s.parents.find((x) => x.nationalId.toLowerCase() === id.toLowerCase() || x.phone === id)?.id;
-  if (role === "teacher") userId = s.teachers.find((x) => x.employeeId.toLowerCase() === id.toLowerCase())?.id;
-  if (role === "admin") userId = s.admins.find((x) => x.username.toLowerCase() === id.toLowerCase())?.id;
-  if (!userId) return { ok: false, error: "لم يتم العثور على حساب بهذا الرقم" };
-  update((st) => ({ ...st, session: { role, userId: userId! } }));
+
+  if (role === "student") {
+    const student = s.students.find((x) => x.academicId.toLowerCase() === id.toLowerCase());
+    if (!student) return { ok: false, error: "لم يتم العثور على طالب بهذا الرقم الأكاديمي" };
+    // Verify student belongs to selected stage
+    const studentClass = s.classes.find((c) => c.id === student.classId);
+    if (!studentClass || studentClass.stageId !== stageId) {
+      return { ok: false, error: "هذا الحساب لا يتبع المرحلة المختارة" };
+    }
+    userId = student.id;
+  } else if (role === "teacher") {
+    const teacher = s.teachers.find((x) => x.employeeId.toLowerCase() === id.toLowerCase());
+    if (!teacher) return { ok: false, error: "لم يتم العثور على معلم بهذا الرقم الوظيفي" };
+    // Verify teacher is assigned to this stage
+    const teacherStages = teacher.stageIds ?? [];
+    const assignedClasses = s.classes.filter((c) => teacher.classes?.includes(c.id));
+    const assignedStages = new Set([...teacherStages, ...assignedClasses.map((c) => c.stageId)]);
+    if (!assignedStages.has(stageId)) {
+      return { ok: false, error: "هذا الحساب لا يتبع المرحلة المختارة" };
+    }
+    userId = teacher.id;
+  } else {
+    // Admin login
+    const admin = s.admins.find((x) => x.username.toLowerCase() === id.toLowerCase());
+    if (!admin) return { ok: false, error: "لم يتم العثور على حساب إداري بهذا الاسم" };
+    userId = admin.id;
+  }
+
+  update((st) => ({
+    ...st,
+    session: { role, userId: userId!, stageId },
+  }));
   return { ok: true };
 }
 
-export function demoLogin(role: Role) {
-  const userId =
-    role === "student"
-      ? DEMO.student.id
-      : role === "parent"
-        ? DEMO.parent.id
-        : role === "teacher"
-          ? DEMO.teacher.id
-          : DEMO.admin.id;
-  update((st) => ({ ...st, session: { role, userId } }));
+export function demoLogin(role: Role, selectedStageId?: StageId) {
+  const s = load();
+  let userId: string;
+  let finalStage: StageId = selectedStageId ?? "المرحلة الثانوية";
+
+  if (role === "student") {
+    // Find student in selected stage, or fall back to demo student
+    const studentInStage = s.students.find((st) => {
+      const cls = s.classes.find((c) => c.id === st.classId);
+      return cls?.stageId === finalStage;
+    });
+    if (studentInStage) {
+      userId = studentInStage.id;
+    } else {
+      userId = DEMO.student.id;
+      const demoCls = s.classes.find((c) => c.id === s.students.find((x) => x.id === DEMO.student.id)?.classId);
+      if (demoCls) finalStage = demoCls.stageId;
+    }
+  } else if (role === "teacher") {
+    userId = DEMO.teacher.id;
+    const t = s.teachers.find((x) => x.id === userId);
+    if (t?.stageIds && t.stageIds[0]) {
+      finalStage = t.stageIds[0];
+    }
+  } else {
+    userId = DEMO.admin.id;
+  }
+
+  update((st) => ({ ...st, session: { role, userId, stageId: finalStage } }));
+}
+
+export function setSessionStage(stageId: StageId) {
+  update((st) => {
+    if (!st.session) return st;
+    return {
+      ...st,
+      session: {
+        ...st.session,
+        stageId,
+      },
+    };
+  });
 }
 
 export function logout() {
@@ -156,19 +211,6 @@ export function resetDemoData() {
   emit();
 }
 
-export function setActiveChild(childId: string) {
-  update((st) => {
-    if (!st.session || st.session.role !== "parent") return st;
-    return {
-      ...st,
-      session: {
-        ...st.session,
-        activeChildId: childId,
-      },
-    };
-  });
-}
-
 /* ---------------- Notifications ---------------- */
 
 export function markNotificationsRead(userId: string, ids: string[]) {
@@ -180,120 +222,15 @@ export function markNotificationsRead(userId: string, ids: string[]) {
   }));
 }
 
-/* ---------------- Fees & Receipts (Bankak / Cash) ---------------- */
+/* ---------------- Fees & Payments ---------------- */
 
-export function submitReceipt(input: {
-  studentId: string;
-  reference: string;
-  transactionId?: string;
-  bankName?: string;
-  senderAccount?: string;
-  amount: number;
-  image?: string;
-  note?: string;
-}) {
-  update((s) => {
-    const receipt: Receipt = {
-      ...input,
-      id: uid("rc"),
-      status: "pending",
-      auditStatus: "under_review",
-      submittedAt: new Date().toISOString(),
-    };
-    const student = s.students.find((x) => x.id === input.studentId);
-    return notify(
-      { ...s, receipts: [receipt, ...s.receipts] },
-      {
-        title: "إشعار سداد بنكك جديد",
-        body: `${student?.name ?? "طالب"} أرفق إشعار سداد (مرجع: ${input.reference}${input.transactionId ? ` - رقم العملية: ${input.transactionId}` : ""}) بانتظار التدقيق`,
-        to: "admin",
-        link: "/app/fees",
-      },
-    );
-  });
-}
-
-export function updateReceiptAudit(
-  receiptId: string,
-  auditStatus: ReceiptAuditStatus,
-  auditNotes?: string,
-  auditedBy?: string,
+export function recordPayment(
+  studentId: string,
+  amount: number,
+  method: string,
+  receiptNo?: string,
+  transactionId?: string,
 ) {
-  update((s) => ({
-    ...s,
-    receipts: s.receipts.map((r) =>
-      r.id === receiptId
-        ? {
-            ...r,
-            auditStatus,
-            auditNotes: auditNotes ?? r.auditNotes,
-            auditedBy: auditedBy ?? r.auditedBy,
-          }
-        : r,
-    ),
-  }));
-}
-
-export function reviewReceipt(
-  receiptId: string,
-  decision: "approved" | "rejected",
-  auditStatus?: ReceiptAuditStatus,
-  auditNotes?: string,
-) {
-  update((s) => {
-    const r = s.receipts.find((x) => x.id === receiptId);
-    if (!r || r.status !== "pending") return s;
-    const nowISO = new Date().toISOString();
-    if (decision === "rejected") {
-      return notify(
-        {
-          ...s,
-          receipts: s.receipts.map((x) =>
-            x.id === receiptId
-              ? {
-                  ...x,
-                  status: "rejected",
-                  auditStatus: auditStatus ?? "discrepancy",
-                  auditNotes: auditNotes ?? x.auditNotes,
-                  reviewedAt: nowISO,
-                }
-              : x,
-          ),
-        },
-        {
-          title: "تم رفض إشعار الدفع",
-          body: `المرجع ${r.reference}${r.transactionId ? ` (رقم العملية: ${r.transactionId})` : ""} — يرجى مراجعة الشؤون المالية`,
-          to: "student",
-          toUserId: r.studentId,
-          link: "/app/fees",
-        },
-      );
-    }
-    const receiptNo = `RC-${new Date().getFullYear()}-${String(1500 + s.payments.length)}`;
-    const { receipt, payment } = approveReceipt(r, nowISO, receiptNo);
-    const updatedReceipt: Receipt = {
-      ...receipt,
-      auditStatus: auditStatus ?? "verified_match",
-      auditNotes: auditNotes ?? "تمت المطابقة والاعتماد بنجاح",
-    };
-    return notify(
-      {
-        ...s,
-        receipts: s.receipts.map((x) => (x.id === receiptId ? updatedReceipt : x)),
-        payments: [{ ...payment, transactionId: r.transactionId }, ...s.payments],
-      },
-      {
-        title: "تم اعتماد إشعار السداد بنجاح",
-        body: `تمت إضافة المبلغ إلى حسابك — إيصال رقم ${receiptNo}${r.transactionId ? ` (رقم العملية: ${r.transactionId})` : ""}`,
-        to: "student",
-        toUserId: r.studentId,
-        link: "/app/fees",
-      },
-    );
-  });
-}
-
-export function recordPayment(studentId: string, amount: number, method: string, transactionId?: string) {
   update((s) => ({
     ...s,
     payments: [
@@ -304,11 +241,368 @@ export function recordPayment(studentId: string, amount: number, method: string,
         method,
         transactionId,
         date: toISODate(new Date()),
-        receiptNo: `RC-${new Date().getFullYear()}-${String(1500 + s.payments.length)}`,
+        receiptNo: receiptNo || `RC-${new Date().getFullYear()}-${String(1500 + s.payments.length)}`,
       },
       ...s.payments,
     ],
   }));
+}
+
+export function importFees(
+  rows: {
+    academicId: string;
+    installmentTitle: string;
+    installmentAmount: number;
+    dueDate: string;
+    paidAmount?: number | undefined;
+    paymentDate?: string | undefined;
+    receiptNo?: string | undefined;
+  }[],
+): { addedInstallments: number; addedPayments: number; errors: string[] } {
+  let addedInstallments = 0;
+  let addedPayments = 0;
+  const errors: string[] = [];
+
+  update((s) => {
+    const newInstallments = [...s.installments];
+    const newPayments = [...s.payments];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]!;
+      const student = s.students.find((st) => st.academicId.trim().toLowerCase() === row.academicId.trim().toLowerCase());
+      if (!student) {
+        errors.push(`صف ${i + 1}: لم يتم العثور على طالب بالرقم الأكاديمي (${row.academicId})`);
+        continue;
+      }
+
+      // Check duplicate installment with compound key: (studentId + title + dueDate)
+      const existingInst = newInstallments.find(
+        (inst) =>
+          inst.studentId === student.id &&
+          inst.title.trim() === row.installmentTitle.trim() &&
+          inst.dueDate === row.dueDate,
+      );
+
+      if (!existingInst) {
+        newInstallments.push({
+          id: uid("inst"),
+          studentId: student.id,
+          title: row.installmentTitle.trim(),
+          amount: row.installmentAmount,
+          dueDate: row.dueDate,
+        });
+        addedInstallments++;
+      }
+
+      // Handle payment if present
+      if (row.paidAmount && row.paidAmount > 0) {
+        const rcNo = row.receiptNo?.trim() || `RC-IMP-${Date.now()}-${i + 1}`;
+        const duplicatePayment = newPayments.find((p) => p.receiptNo === rcNo);
+        if (!duplicatePayment) {
+          newPayments.push({
+            id: uid("pay"),
+            studentId: student.id,
+            amount: row.paidAmount,
+            date: row.paymentDate || toISODate(new Date()),
+            method: "استيراد",
+            receiptNo: rcNo,
+          });
+          addedPayments++;
+        }
+      }
+    }
+
+    return {
+      ...s,
+      installments: newInstallments,
+      payments: newPayments,
+    };
+  });
+
+  return { addedInstallments, addedPayments, errors };
+}
+
+/* ---------------- Student Management ---------------- */
+
+export function addStudent(student: Omit<Student, "id"> & { id?: string }): { ok: true } | { ok: false; error: string } {
+  const s = load();
+  if (s.students.some((st) => st.academicId.trim().toLowerCase() === student.academicId.trim().toLowerCase())) {
+    return { ok: false, error: "الرقم الأكاديمي مسجل بالفعل لطالب آخر" };
+  }
+
+  update((st) => {
+    const id = student.id ?? uid("s");
+    const newStudent: Student = { ...student, id };
+    const a1 = Math.round(newStudent.totalFees * 0.4);
+    const a2 = Math.round(newStudent.totalFees * 0.3);
+    const a3 = newStudent.totalFees - a1 - a2;
+    const now = new Date();
+    const nowISO = toISODate(now);
+    const inst1 = { id: uid("in"), studentId: id, title: "القسط الأول (التسجيل)", amount: a1, dueDate: nowISO };
+    const inst2 = { id: uid("in"), studentId: id, title: "القسط الثاني (منتصف العام)", amount: a2, dueDate: toISODate(new Date(now.getTime() + 45 * 86400000)) };
+    const inst3 = { id: uid("in"), studentId: id, title: "القسط الثالث (الختامي)", amount: a3, dueDate: toISODate(new Date(now.getTime() + 90 * 86400000)) };
+
+    return {
+      ...st,
+      students: [newStudent, ...st.students],
+      installments: [...st.installments, inst1, inst2, inst3],
+    };
+  });
+
+  return { ok: true };
+}
+
+export function updateStudent(id: string, updates: Partial<Student>): { ok: true } | { ok: false; error: string } {
+  const s = load();
+  if (updates.academicId) {
+    const conflict = s.students.find(
+      (st) => st.id !== id && st.academicId.trim().toLowerCase() === updates.academicId!.trim().toLowerCase(),
+    );
+    if (conflict) {
+      return { ok: false, error: "الرقم الأكاديمي مسجل لطالب آخر" };
+    }
+  }
+
+  update((st) => ({
+    ...st,
+    students: st.students.map((x) => (x.id === id ? { ...x, ...updates } : x)),
+  }));
+  return { ok: true };
+}
+
+export function archiveStudent(id: string) {
+  update((s) => ({
+    ...s,
+    students: s.students.map((st) => (st.id === id ? { ...st, status: "archived" } : st)),
+  }));
+}
+
+export function restoreStudent(id: string) {
+  update((s) => ({
+    ...s,
+    students: s.students.map((st) => (st.id === id ? { ...st, status: "active" } : st)),
+  }));
+}
+
+export function importStudents(
+  rows: Omit<Student, "id">[],
+  mode: "add_only" | "update_existing",
+): { added: number; updated: number; ignored: number; errors: string[] } {
+  let added = 0;
+  let updated = 0;
+  let ignored = 0;
+  const errors: string[] = [];
+
+  update((s) => {
+    let currentStudents = [...s.students];
+    const newInstallments = [...s.installments];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]!;
+      const existing = currentStudents.find(
+        (st) => st.academicId.trim().toLowerCase() === row.academicId.trim().toLowerCase(),
+      );
+
+      if (existing) {
+        if (mode === "update_existing") {
+          currentStudents = currentStudents.map((st) => (st.id === existing.id ? { ...st, ...row } : st));
+          updated++;
+        } else {
+          ignored++;
+        }
+      } else {
+        const id = uid("s");
+        const newStudent: Student = { ...row, id };
+        currentStudents.push(newStudent);
+
+        // Generate installments
+        const a1 = Math.round(newStudent.totalFees * 0.4);
+        const a2 = Math.round(newStudent.totalFees * 0.3);
+        const a3 = newStudent.totalFees - a1 - a2;
+        const now = new Date();
+        newInstallments.push(
+          { id: uid("in"), studentId: id, title: "القسط الأول (التسجيل)", amount: a1, dueDate: toISODate(now) },
+          { id: uid("in"), studentId: id, title: "القسط الثاني (منتصف العام)", amount: a2, dueDate: toISODate(new Date(now.getTime() + 45 * 86400000)) },
+          { id: uid("in"), studentId: id, title: "القسط الثالث (الختامي)", amount: a3, dueDate: toISODate(new Date(now.getTime() + 90 * 86400000)) },
+        );
+        added++;
+      }
+    }
+
+    return {
+      ...s,
+      students: currentStudents,
+      installments: newInstallments,
+    };
+  });
+
+  return { added, updated, ignored, errors };
+}
+
+/* ---------------- Teacher Management ---------------- */
+
+export function addTeacher(teacher: Omit<Teacher, "id"> & { id?: string }): { ok: true } | { ok: false; error: string } {
+  const s = load();
+  if (s.teachers.some((t) => t.employeeId.trim().toLowerCase() === teacher.employeeId.trim().toLowerCase())) {
+    return { ok: false, error: "الرقم الوظيفي مسجل بالفعل لمعلم آخر" };
+  }
+
+  update((st) => {
+    const id = teacher.id ?? uid("t");
+    const newTeacher: Teacher = { ...teacher, id };
+    return {
+      ...st,
+      teachers: [newTeacher, ...st.teachers],
+    };
+  });
+  return { ok: true };
+}
+
+export function updateTeacher(id: string, updates: Partial<Teacher>): { ok: true } | { ok: false; error: string } {
+  const s = load();
+  if (updates.employeeId) {
+    const conflict = s.teachers.find(
+      (t) => t.id !== id && t.employeeId.trim().toLowerCase() === updates.employeeId!.trim().toLowerCase(),
+    );
+    if (conflict) {
+      return { ok: false, error: "الرقم الوظيفي مسجل لمعلم آخر" };
+    }
+  }
+
+  update((st) => ({
+    ...st,
+    teachers: st.teachers.map((x) => (x.id === id ? { ...x, ...updates } : x)),
+  }));
+  return { ok: true };
+}
+
+export function archiveTeacher(id: string) {
+  update((s) => ({
+    ...s,
+    teachers: s.teachers.map((t) => (t.id === id ? { ...t, status: "archived" } : t)),
+  }));
+}
+
+export function restoreTeacher(id: string) {
+  update((s) => ({
+    ...s,
+    teachers: s.teachers.map((t) => (t.id === id ? { ...t, status: "active" } : t)),
+  }));
+}
+
+export function assignTeacherClasses(teacherId: string, classIds: string[]) {
+  update((s) => ({
+    ...s,
+    teachers: s.teachers.map((t) => (t.id === teacherId ? { ...t, classes: classIds } : t)),
+  }));
+}
+
+export function importTeachers(
+  rows: Omit<Teacher, "id">[],
+): { added: number; updated: number; errors: string[] } {
+  let added = 0;
+  let updated = 0;
+  const errors: string[] = [];
+
+  update((s) => {
+    let currentTeachers = [...s.teachers];
+
+    for (const row of rows) {
+      const existing = currentTeachers.find(
+        (t) => t.employeeId.trim().toLowerCase() === row.employeeId.trim().toLowerCase(),
+      );
+
+      if (existing) {
+        currentTeachers = currentTeachers.map((t) => (t.id === existing.id ? { ...t, ...row } : t));
+        updated++;
+      } else {
+        currentTeachers.push({ ...row, id: uid("t") });
+        added++;
+      }
+    }
+
+    return {
+      ...s,
+      teachers: currentTeachers,
+    };
+  });
+
+  return { added, updated, errors };
+}
+
+/* ---------------- Timetable & Slots ---------------- */
+
+export function saveSlot(slot: Omit<Slot, "id"> & { id?: string | undefined }) {
+  update((s) => {
+    const existing = s.slots.find((x) => x.classId === slot.classId && x.day === slot.day && x.period === slot.period);
+    if (existing) {
+      return { ...s, slots: s.slots.map((x) => (x.id === existing.id ? { ...slot, id: existing.id } : x)) };
+    }
+    return { ...s, slots: [...s.slots, { ...slot, id: uid("sl") }] };
+  });
+}
+
+export function deleteSlot(id: string) {
+  update((s) => ({ ...s, slots: s.slots.filter((x) => x.id !== id) }));
+}
+
+export function importTimetable(
+  slotsToImport: Omit<Slot, "id">[],
+  mode: "replace_class" | "add_update",
+  targetClassId?: string,
+): { saved: number } {
+  let saved = 0;
+  update((s) => {
+    let updatedSlots = [...s.slots];
+    if (mode === "replace_class" && targetClassId) {
+      updatedSlots = updatedSlots.filter((slot) => slot.classId !== targetClassId);
+    }
+
+    for (const item of slotsToImport) {
+      const existingIdx = updatedSlots.findIndex(
+        (sl) => sl.classId === item.classId && sl.day === item.day && sl.period === item.period,
+      );
+      if (existingIdx >= 0) {
+        updatedSlots[existingIdx] = { ...item, id: updatedSlots[existingIdx]!.id };
+      } else {
+        updatedSlots.push({ ...item, id: uid("sl") });
+      }
+      saved++;
+    }
+
+    return { ...s, slots: updatedSlots };
+  });
+
+  return { saved };
+}
+
+export function copyClassTimetable(sourceClassId: string, targetClassId: string): { copied: number } {
+  let copied = 0;
+  update((s) => {
+    const sourceSlots = s.slots.filter((sl) => sl.classId === sourceClassId);
+    // Remove existing target class slots
+    const otherSlots = s.slots.filter((sl) => sl.classId !== targetClassId);
+
+    const targetClass = s.classes.find((c) => c.id === targetClassId);
+    const targetRoom = targetClass ? `قاعة ${targetClass.name}` : "قاعة دراسية";
+
+    const newSlots: Slot[] = sourceSlots.map((sl) => {
+      copied++;
+      return {
+        ...sl,
+        id: uid("sl"),
+        classId: targetClassId,
+        room: targetRoom,
+      };
+    });
+
+    return {
+      ...s,
+      slots: [...otherSlots, ...newSlots],
+    };
+  });
+
+  return { copied };
 }
 
 /* ---------------- Grades & Academic Assessment ---------------- */
@@ -335,9 +629,9 @@ export function recordGrade(entry: Omit<GradeEntry, "id" | "recordedAt">) {
       {
         title: "رصد نتيجة أكاديمية",
         body: `تم رصد درجة مادة ${entry.subject} (المجموع: ${entry.totalScore}٪)`,
-        to: "parent",
+        to: "student",
         toUserId: entry.studentId,
-        link: "/app",
+        link: "/app/grades",
       },
     );
   });
@@ -360,9 +654,9 @@ export function addBehaviorRecord(record: Omit<BehaviorRecord, "id">) {
       {
         title: record.type === "positive" ? "إشادة سلوكية وتربوية" : "ملاحظة تربوية وانضباطية",
         body: record.title,
-        to: "parent",
+        to: "student",
         toUserId: record.studentId,
-        link: "/app",
+        link: "/app/grades",
       },
     );
   });
@@ -436,22 +730,6 @@ export function setAttendance(date: string, classId: string, entries: Record<str
   });
 }
 
-/* ---------------- Timetable ---------------- */
-
-export function saveSlot(slot: Omit<Slot, "id"> & { id?: string }) {
-  update((s) => {
-    const existing = s.slots.find((x) => x.classId === slot.classId && x.day === slot.day && x.period === slot.period);
-    if (existing) {
-      return { ...s, slots: s.slots.map((x) => (x.id === existing.id ? { ...slot, id: existing.id } : x)) };
-    }
-    return { ...s, slots: [...s.slots, { ...slot, id: uid("sl") }] };
-  });
-}
-
-export function deleteSlot(id: string) {
-  update((s) => ({ ...s, slots: s.slots.filter((x) => x.id !== id) }));
-}
-
 /* ---------------- Calendar ---------------- */
 
 export function addEvent(e: Omit<CalendarEvent, "id">) {
@@ -467,68 +745,6 @@ export function deleteEvent(id: string) {
   update((s) => ({ ...s, events: s.events.filter((x) => x.id !== id) }));
 }
 
-/* ---------------- Directory, Parents & School Management ---------------- */
-
-export function addStudent(student: Omit<Student, "id"> & { id?: string }) {
-  update((s) => {
-    const id = student.id ?? uid("s");
-    const newStudent: Student = { ...student, id };
-    const a1 = Math.round(newStudent.totalFees * 0.4);
-    const a2 = Math.round(newStudent.totalFees * 0.3);
-    const a3 = newStudent.totalFees - a1 - a2;
-    const now = new Date();
-    const nowISO = toISODate(now);
-    const inst1 = { id: uid("in"), studentId: id, title: "القسط الأول (التسجيل)", amount: a1, dueDate: nowISO };
-    const inst2 = { id: uid("in"), studentId: id, title: "القسط الثاني (منتصف العام)", amount: a2, dueDate: toISODate(new Date(now.getTime() + 45 * 86400000)) };
-    const inst3 = { id: uid("in"), studentId: id, title: "القسط الثالث (الختامي)", amount: a3, dueDate: toISODate(new Date(now.getTime() + 90 * 86400000)) };
-    return {
-      ...s,
-      students: [newStudent, ...s.students],
-      installments: [...s.installments, inst1, inst2, inst3],
-    };
-  });
-}
-
-export function addParent(parent: Omit<Parent, "id"> & { id?: string }) {
-  update((s) => {
-    const id = parent.id ?? uid("p");
-    return {
-      ...s,
-      parents: [{ ...parent, id }, ...s.parents],
-    };
-  });
-}
-
-export function linkChildToParent(parentId: string, studentId: string) {
-  update((s) => ({
-    ...s,
-    parents: s.parents.map((p) =>
-      p.id === parentId && !p.studentIds.includes(studentId)
-        ? { ...p, studentIds: [...p.studentIds, studentId] }
-        : p,
-    ),
-    students: s.students.map((st) => (st.id === studentId ? { ...st, parentId } : st)),
-  }));
-}
-
-export function addTeacher(teacher: Omit<Teacher, "id"> & { id?: string }) {
-  update((s) => {
-    const id = teacher.id ?? uid("t");
-    const newTeacher: Teacher = { ...teacher, id };
-    return {
-      ...s,
-      teachers: [newTeacher, ...s.teachers],
-    };
-  });
-}
-
-export function assignTeacherClasses(teacherId: string, classIds: string[]) {
-  update((s) => ({
-    ...s,
-    teachers: s.teachers.map((t) => (t.id === teacherId ? { ...t, classes: classIds } : t)),
-  }));
-}
-
 export function addClass(schoolClass: SchoolClass) {
   update((s) => ({
     ...s,
@@ -538,7 +754,7 @@ export function addClass(schoolClass: SchoolClass) {
 
 export function forceResetDefaultData() {
   state = createSeed();
-  state.session = { role: "admin", userId: DEMO.admin.id };
+  state.session = { role: "admin", userId: DEMO.admin.id, stageId: "المرحلة الثانوية" };
   persist();
   emit();
 }
@@ -550,21 +766,14 @@ export function currentUser(s: SchoolState) {
   if (!sess) return null;
   if (sess.role === "student") {
     const u = s.students.find((x) => x.id === sess.userId);
-    return u ? { role: "student" as const, id: u.id, name: u.name, student: u } : null;
-  }
-  if (sess.role === "parent") {
-    const u = s.parents.find((x) => x.id === sess.userId);
-    if (!u) return null;
-    const children = s.students.filter((st) => u.studentIds.includes(st.id));
-    const activeChild = children.find((c) => c.id === sess.activeChildId) ?? children[0] ?? null;
-    return { role: "parent" as const, id: u.id, name: u.name, parent: u, children, activeChild };
+    return u ? { role: "student" as const, id: u.id, name: u.name, student: u, stageId: sess.stageId } : null;
   }
   if (sess.role === "teacher") {
     const u = s.teachers.find((x) => x.id === sess.userId);
-    return u ? { role: "teacher" as const, id: u.id, name: u.name, teacher: u } : null;
+    return u ? { role: "teacher" as const, id: u.id, name: u.name, teacher: u, stageId: sess.stageId } : null;
   }
   const u = s.admins.find((x) => x.id === sess.userId);
-  return u ? { role: "admin" as const, id: u.id, name: u.name, admin: u } : null;
+  return u ? { role: "admin" as const, id: u.id, name: u.name, admin: u, stageId: sess.stageId } : null;
 }
 
 export function notificationsFor(s: SchoolState, role: Role, userId: string) {

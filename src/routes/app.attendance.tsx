@@ -27,54 +27,15 @@ import { setAttendance } from "@/lib/school/store";
 import type { AttendanceStatus } from "@/lib/school/types";
 import { cn } from "@/lib/utils";
 
-import { setActiveChild } from "@/lib/school/store";
-
 export const Route = createFileRoute("/app/attendance")({
   component: AttendancePage,
 });
 
 function AttendancePage() {
-  const { s, me } = useMe();
+  const { me } = useMe();
 
   if (me.role === "student") {
     return <StudentAttendance studentId={me.student.id} />;
-  }
-
-  if (me.role === "parent") {
-    const activeStudent = me.activeChild || me.children[0];
-    if (activeStudent) {
-      return (
-        <div className="space-y-4">
-          {me.children.length > 1 && (
-            <div className="flex items-center gap-2 p-3 bg-card border rounded-2xl shadow-card overflow-x-auto no-scrollbar">
-              <span className="text-xs font-bold text-muted-foreground shrink-0">عرض حضور الابن:</span>
-              {me.children.map((c) => {
-                const isSelected = c.id === activeStudent.id;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveChild(c.id);
-                      toast.success(`تم اختيار متابعة حضور: ${c.name}`);
-                    }}
-                    className={cn(
-                      "px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 border",
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                        : "bg-muted/40 border-border text-foreground hover:bg-muted",
-                    )}
-                  >
-                    {c.name.split(" ").slice(0, 2).join(" ")}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <StudentAttendance studentId={activeStudent.id} customStudentName={activeStudent.name} />
-        </div>
-      );
-    }
   }
 
   return <StaffAttendance />;

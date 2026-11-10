@@ -45,7 +45,6 @@ import {
 import {
   deleteHomework,
   postHomework,
-  setActiveChild,
   toggleHomeworkDone,
 } from "@/lib/school/store";
 import type { Homework } from "@/lib/school/types";
@@ -74,12 +73,7 @@ function HomeworkPage() {
   );
   const [formKind, setFormKind] = useState<"homework" | "notes">("homework");
 
-  const targetStudent =
-    me.role === "student"
-      ? me.student
-      : me.role === "parent"
-        ? me.activeChild
-        : null;
+  const targetStudent = me.role === "student" ? me.student : null;
 
   // Filter items
   const items = useMemo(() => {
@@ -149,32 +143,6 @@ function HomeworkPage() {
           )
         }
       />
-
-      {/* Parent Child Switcher */}
-      {me.role === "parent" && me.children && me.children.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card/90 p-3 shadow-card">
-          <span className="text-xs font-bold text-muted-foreground ml-2">واجبات ومذكرات الطالب:</span>
-          {me.children.map((child) => {
-            const isSelected = me.activeChild?.id === child.id;
-            const childCls = s.classes.find((c) => c.id === child.classId);
-            return (
-              <Button
-                key={child.id}
-                type="button"
-                variant={isSelected ? "default" : "outline"}
-                size="sm"
-                onClick={() => setActiveChild(child.id)}
-                className={cn(
-                  "rounded-full text-xs font-bold transition-all",
-                  isSelected && "bg-navy text-gold shadow-sm",
-                )}
-              >
-                {child.name} ({childCls?.name ?? child.classId})
-              </Button>
-            );
-          })}
-        </div>
-      )}
 
       {/* Tabs Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">

@@ -41,7 +41,7 @@ import {
   PERIODS,
   currentOrNextSchoolDay,
 } from "@/lib/school/logic";
-import { deleteSlot, saveSlot, setActiveChild } from "@/lib/school/store";
+import { deleteSlot, saveSlot } from "@/lib/school/store";
 import type { Slot } from "@/lib/school/types";
 import { cn } from "@/lib/utils";
 
@@ -58,21 +58,12 @@ function SchedulePage() {
   const defaultMode = me.role === "teacher" ? "teacher" : "class";
   const [viewMode, setViewMode] = useState<"class" | "teacher">(defaultMode);
 
-  // Class selection (default to student's class, parent's active child's class, or first class)
+  // Class selection (default to student's class or first class in active stage)
   const defaultClass =
     me.role === "student"
       ? me.student.classId
-      : me.role === "parent"
-        ? (me.activeChild?.classId ?? s.classes[0]?.id ?? "c3a")
-        : (s.classes[0]?.id ?? "c3a");
+      : (s.classes.find((c) => c.stageId === me.stageId)?.id ?? s.classes[0]?.id ?? "c-sec-1a");
   const [selectedClassId, setSelectedClassId] = useState<string>(defaultClass);
-
-  // Update selected class if parent changes child
-  useEffect(() => {
-    if (me.role === "parent" && me.activeChild) {
-      setSelectedClassId(me.activeChild.classId);
-    }
-  }, [me.role, me.role === "parent" ? me.activeChild?.id : null]);
 
   // Teacher selection (default to current teacher or first teacher)
   const defaultTeacher = me.role === "teacher" ? me.teacher.id : s.teachers[0]?.id || "t1";
@@ -162,36 +153,6 @@ function SchedulePage() {
           )
         }
       />
-
-      {/* Parent Child Switcher */}
-      {me.role === "parent" && me.children && me.children.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card/90 p-3 shadow-card">
-          <span className="text-xs font-bold text-muted-foreground ml-2">جدول دراسي لابني/ابنتي:</span>
-          {me.children.map((child) => {
-            const isSelected = me.activeChild?.id === child.id;
-            const childCls = s.classes.find((c) => c.id === child.classId);
-            return (
-              <Button
-                key={child.id}
-                type="button"
-                variant={isSelected ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setActiveChild(child.id);
-                  setSelectedClassId(child.classId);
-                  setViewMode("class");
-                }}
-                className={cn(
-                  "rounded-full text-xs font-bold transition-all",
-                  isSelected && "bg-navy text-gold shadow-sm",
-                )}
-              >
-                {child.name} ({childCls?.name ?? child.classId})
-              </Button>
-            );
-          })}
-        </div>
-      )}
 
       {/* View Switcher: By Class vs By Teacher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border bg-card p-3 shadow-card">

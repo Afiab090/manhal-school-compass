@@ -3,14 +3,11 @@ import {
   Bell,
   BellOff,
   Calendar,
-  CheckCircle2,
   ChevronLeft,
   LogOut,
   Menu,
   RotateCcw,
   Sparkles,
-  UserCheck,
-  Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -24,24 +21,24 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { formatDate } from "@/lib/school/logic";
+import { DEMO_MODE } from "@/lib/school/seed";
 import {
   demoLogin,
   forceResetDefaultData,
   logout,
   markNotificationsRead,
   notificationsFor,
-  setActiveChild,
 } from "@/lib/school/store";
 import type { Role } from "@/lib/school/types";
 import { cn } from "@/lib/utils";
 import { Logo, LogoMark } from "./Logo";
 import { ThemeToggle } from "./ThemeToggle";
-import { getDrawerCategories, roleLabel, type AppPath, type NavItem } from "./nav";
+import { getDrawerCategories, roleLabel, type AppPath } from "./nav";
 import { useMe } from "./useMe";
 
 function firstName(name: string) {
   const parts = name.replace(/^أ\.\s*/, "").split(" ");
-  return parts[0];
+  return parts[0] || name;
 }
 
 export function TopBar({ onOpenDrawer }: { onOpenDrawer?: () => void }) {
@@ -68,33 +65,34 @@ export function TopBar({ onOpenDrawer }: { onOpenDrawer?: () => void }) {
           {/* School Brand & Logo */}
           <Link to="/app" className="flex items-center gap-2.5">
             <LogoMark className="h-9 w-9" />
-            <div className="hidden sm:block leading-tight">
+            <div className="leading-tight">
               <span className="font-display text-base font-bold text-navy">مدرسة المنهل</span>
               <span className="block text-[10px] text-muted-foreground">المدرسة الإلكترونية</span>
             </div>
           </Link>
 
-          {/* User Welcome */}
-          <div className="min-w-0 flex-1 px-1">
-            <div className="truncate text-sm font-bold text-foreground">
-              أهلاً، {me.role === "teacher" ? "أ. " : ""}
-              {firstName(me.name)} 👋
-            </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="inline-flex items-center rounded-full bg-gold-soft px-2 py-0.5 text-[10px] font-bold text-navy">
-                {roleLabel[me.role]}
-              </span>
-              {me.role === "parent" && me.activeChild && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-                  <Users className="h-3 w-3 text-gold" />
-                  متابعة: {me.activeChild.name.split(" ")[0]}
+          {/* User Welcome: Hide admin name in topbar, keep for student & teacher */}
+          {me.role === "admin" ? (
+            <div className="min-w-0 flex-1" />
+          ) : (
+            <div className="min-w-0 flex-1 px-1">
+              <div className="truncate text-sm font-bold text-foreground">
+                أهلاً، {me.role === "teacher" ? "أ. " : ""}
+                {firstName(me.name)} 👋
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="inline-flex items-center rounded-full bg-gold-soft px-2 py-0.5 text-[10px] font-bold text-navy">
+                  {roleLabel[me.role]}
                 </span>
-              )}
-              <span className="hidden md:inline-flex text-[11px] text-muted-foreground">
-                العام الدراسي ٢٠٢٥ - ٢٠٢٦
-              </span>
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  {me.stageId}
+                </span>
+                <span className="hidden md:inline-flex text-[11px] text-muted-foreground">
+                  العام الدراسي ٢٠٢٥ - ٢٠٢٦
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Notifications and Theme Toggle */}
           <NotificationBell />
@@ -120,7 +118,7 @@ export function SideDrawer({
   const categories = useMemo(() => getDrawerCategories(me.role), [me.role]);
 
   const handleRoleSwitch = (newRole: Role) => {
-    demoLogin(newRole);
+    demoLogin(newRole, me.stageId);
     toast.success(`تم التبديل إلى حساب: ${roleLabel[newRole]}`);
     onOpenChange(false);
     navigate({ to: "/app" });
@@ -167,45 +165,14 @@ export function SideDrawer({
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="inline-flex items-center rounded-md bg-gold-soft px-1.5 py-0.5 text-[10px] font-bold text-navy">
-                  {roleLabel[me.role]}
+                  {me.role === "admin" ? (me.admin?.title || roleLabel[me.role]) : roleLabel[me.role]}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-medium">
+                  {me.stageId}
                 </span>
               </div>
             </div>
           </div>
-
-          {/* Multi-child selector for parent */}
-          {me.role === "parent" && me.children.length > 0 && (
-            <div className="mt-3 space-y-1.5 rounded-2xl border bg-card p-2.5 shadow-card">
-              <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground px-1">
-                <span>تحديد الابن للمتابعة:</span>
-                <span className="text-gold font-mono">{me.children.length} أبناء</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                {me.children.map((child) => {
-                  const isSelected = me.activeChild?.id === child.id;
-                  return (
-                    <button
-                      key={child.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveChild(child.id);
-                        toast.success(`تم اختيار متابعة: ${child.name}`);
-                      }}
-                      className={cn(
-                        "flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all text-start",
-                        isSelected
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "bg-muted/40 text-foreground hover:bg-muted",
-                      )}
-                    >
-                      <span className="truncate">{child.name}</span>
-                      {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-gold shrink-0 ms-1" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           <div className="mt-2.5 flex items-center justify-between text-[11px] text-muted-foreground px-1">
             <span className="flex items-center gap-1">
@@ -247,41 +214,45 @@ export function SideDrawer({
 
         {/* 3. Footer: Role Switcher, Reset Seed, Theme, Logout */}
         <div className="border-t bg-muted/20 p-4 space-y-3">
-          {/* Quick Role Switcher */}
-          <div>
-            <div className="mb-1.5 flex items-center gap-1 text-[11px] font-bold text-muted-foreground">
-              <Sparkles className="h-3 w-3 text-gold" />
-              تبديل سريع للحساب (للتجربة)
+          {/* Quick Role Switcher (Shown in DEMO_MODE only) */}
+          {DEMO_MODE && (
+            <div>
+              <div className="mb-1.5 flex items-center gap-1 text-[11px] font-bold text-muted-foreground">
+                <Sparkles className="h-3 w-3 text-gold" />
+                تبديل سريع للحساب (للتجربة)
+              </div>
+              <div className="grid grid-cols-3 gap-1 rounded-xl border bg-card p-1">
+                {(["student", "teacher", "admin"] as Role[]).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => handleRoleSwitch(r)}
+                    className={cn(
+                      "rounded-lg py-1.5 text-xs font-bold transition-all",
+                      me.role === r
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {r === "student" ? "طالب" : r === "teacher" ? "معلم" : "إدارة"}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-4 gap-1 rounded-xl border bg-card p-1">
-              {(["student", "parent", "teacher", "admin"] as Role[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => handleRoleSwitch(r)}
-                  className={cn(
-                    "rounded-lg py-1.5 text-xs font-bold transition-all",
-                    me.role === r
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  {r === "student" ? "طالب" : r === "parent" ? "ولي أمر" : r === "teacher" ? "معلم" : "إدارة"}
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* Reset Demo Data Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleReset}
-            className="w-full justify-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground border-border"
-          >
-            <RotateCcw className="h-3.5 w-3.5 text-gold" />
-            تحديث وإعادة ضبط البيانات الافتراضية
-          </Button>
+          {DEMO_MODE && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReset}
+              className="w-full justify-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground border-border"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-gold" />
+              تحديث وإعادة ضبط البيانات الافتراضية
+            </Button>
+          )}
 
           {/* Bottom Row: Theme & Logout */}
           <div className="flex items-center justify-between pt-1">
@@ -293,7 +264,8 @@ export function SideDrawer({
             <button
               onClick={() => {
                 onOpenChange(false);
-                navigate({ to: "/login" }).then(() => logout());
+                logout();
+                navigate({ to: "/" });
               }}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-destructive transition-colors hover:bg-danger-soft"
             >
@@ -388,7 +360,7 @@ export function SideNav() {
   const categories = useMemo(() => getDrawerCategories(me.role), [me.role]);
 
   const handleRoleSwitch = (newRole: Role) => {
-    demoLogin(newRole);
+    demoLogin(newRole, me.stageId);
     toast.success(`تم التبديل إلى حساب: ${roleLabel[newRole]}`);
     navigate({ to: "/app" });
   };
@@ -402,40 +374,6 @@ export function SideNav() {
           <div className="text-[11px] text-muted-foreground">المدرسة الإلكترونية</div>
         </div>
       </Link>
-
-      {/* Multi-child selector for parent in desktop sidebar */}
-      {me.role === "parent" && me.children.length > 0 && (
-        <div className="p-3 border-b bg-muted/30 space-y-1.5">
-          <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground px-1">
-            <span>الابن المحدد للمتابعة:</span>
-            <span className="text-gold font-mono">{me.children.length} أبناء</span>
-          </div>
-          <div className="space-y-1">
-            {me.children.map((child) => {
-              const isSelected = me.activeChild?.id === child.id;
-              return (
-                <button
-                  key={child.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveChild(child.id);
-                    toast.success(`تم اختيار متابعة: ${child.name}`);
-                  }}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all text-start",
-                    isSelected
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "bg-card border border-border text-foreground hover:bg-muted",
-                  )}
-                >
-                  <span className="truncate">{child.name}</span>
-                  {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-gold shrink-0 ms-1" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="flex-1 space-y-4 overflow-y-auto p-3">
         {categories.map((cat, idx) => (
@@ -460,27 +398,30 @@ export function SideNav() {
       </div>
 
       <div className="border-t p-3 space-y-2 bg-muted/10">
-        <div className="rounded-xl border bg-card p-1 grid grid-cols-4 gap-1">
-          {(["student", "parent", "teacher", "admin"] as Role[]).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => handleRoleSwitch(r)}
-              className={cn(
-                "rounded-md py-1 text-[11px] font-bold transition-all",
-                me.role === r
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {r === "student" ? "طالب" : r === "parent" ? "ولي أمر" : r === "teacher" ? "معلم" : "إدارة"}
-            </button>
-          ))}
-        </div>
+        {DEMO_MODE && (
+          <div className="rounded-xl border bg-card p-1 grid grid-cols-3 gap-1">
+            {(["student", "teacher", "admin"] as Role[]).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => handleRoleSwitch(r)}
+                className={cn(
+                  "rounded-md py-1 text-[11px] font-bold transition-all",
+                  me.role === r
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {r === "student" ? "طالب" : r === "teacher" ? "معلم" : "إدارة"}
+              </button>
+            ))}
+          </div>
+        )}
 
         <button
           onClick={() => {
-            navigate({ to: "/login" }).then(() => logout());
+            logout();
+            navigate({ to: "/" });
           }}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-destructive hover:bg-danger-soft transition-colors"
         >

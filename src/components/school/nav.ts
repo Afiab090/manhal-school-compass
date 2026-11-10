@@ -2,6 +2,7 @@ import {
   Award,
   BookOpen,
   CalendarDays,
+  Clock,
   GraduationCap,
   Home,
   Megaphone,
@@ -22,11 +23,14 @@ export type AppPath =
   | "/app/profile"
   | "/app/homework"
   | "/app/attendance"
-  | "/app/calendar";
+  | "/app/calendar"
+  | "/app/students"
+  | "/app/teachers"
+  | "/app/timetables";
 
 export interface NavItem {
   to: AppPath;
-  tab?: string;
+  tab?: string | undefined;
   label: string;
   icon: LucideIcon;
 }
@@ -43,57 +47,61 @@ export const navItems = {
   calendar: { to: "/app/calendar" as AppPath, label: "التقويم والامتحانات", icon: Award },
   homework: { to: "/app/homework" as AppPath, label: "الواجبات والدروس", icon: BookOpen },
   attendance: { to: "/app/attendance" as AppPath, label: "الحضور والغياب", icon: UserCheck },
-  fees: { to: "/app/fees" as AppPath, label: "الرسوم الدراسية", icon: Wallet },
+  fees: { to: "/app/fees" as AppPath, label: "كشف الرسوم الدراسية", icon: Wallet },
   notices: { to: "/app/notices" as AppPath, label: "الإعلانات واللوائح", icon: Megaphone },
   profile: { to: "/app/profile" as AppPath, label: "الملف الشخصي", icon: UserCircle },
-  classesAndStudents: { to: "/app" as AppPath, tab: "students", label: "متابعة الفصول والطلاب", icon: Users },
-  teachersDirectory: { to: "/app" as AppPath, tab: "teachers", label: "دليل أساتذة المواد", icon: GraduationCap },
+  students: { to: "/app/students" as AppPath, label: "إدارة الطلاب والفصول", icon: Users },
+  teachers: { to: "/app/teachers" as AppPath, label: "هيئة التدريس", icon: GraduationCap },
+  timetables: { to: "/app/timetables" as AppPath, label: "الجداول المدرسية", icon: Clock },
 };
 
 /** Categorized navigation for the slide-out side drawer and persistent side navigation. */
 export function getDrawerCategories(role: Role): NavCategory[] {
-  if (role === "parent") {
+  if (role === "admin") {
     return [
       {
-        title: "بوابة ولي الأمر",
-        items: [navItems.home, navItems.grades, navItems.fees],
+        title: "الرئيسية",
+        items: [navItems.home],
       },
       {
-        title: "المتابعة المدرسية للأبناء",
-        items: [navItems.attendance, navItems.homework, navItems.schedule],
+        title: "الشؤون الأكاديمية",
+        items: [navItems.schedule, navItems.calendar, navItems.attendance, navItems.notices],
       },
       {
-        title: "التواصل والتقويم",
-        items: [navItems.calendar, navItems.notices],
+        title: "الإدارة والمتابعة",
+        items: [navItems.students, navItems.teachers, navItems.timetables, navItems.fees],
       },
     ];
   }
 
-  const main: NavCategory = {
-    title: "القائمة الرئيسية",
-    items: [navItems.home, navItems.grades, navItems.schedule, navItems.calendar],
-  };
-
-  const academicItems: NavItem[] =
-    role === "teacher"
-      ? [navItems.homework, navItems.attendance, navItems.notices]
-      : [navItems.homework, navItems.attendance, navItems.fees, navItems.notices];
-
-  const academic: NavCategory = {
-    title: "الشؤون الأكاديمية والطلابية",
-    items: academicItems,
-  };
-
-  const categories: NavCategory[] = [main, academic];
-
-  if (role === "admin" || role === "teacher") {
-    categories.push({
-      title: "إدارة المدرسة والمتابعة",
-      items: [navItems.classesAndStudents, navItems.teachersDirectory],
-    });
+  if (role === "teacher") {
+    return [
+      {
+        title: "القائمة الرئيسية",
+        items: [navItems.home, navItems.schedule, navItems.calendar],
+      },
+      {
+        title: "الشؤون الأكاديمية والطلابية",
+        items: [navItems.homework, navItems.attendance, navItems.notices],
+      },
+      {
+        title: "المتابعة المدرسية",
+        items: [navItems.students, navItems.teachers],
+      },
+    ];
   }
 
-  return categories;
+  // Student role
+  return [
+    {
+      title: "القائمة الرئيسية",
+      items: [navItems.home, navItems.grades, navItems.schedule, navItems.calendar],
+    },
+    {
+      title: "الشؤون الأكاديمية والطلابية",
+      items: [navItems.homework, navItems.attendance, navItems.fees, navItems.notices],
+    },
+  ];
 }
 
 /** Flattened items for backward compatibility if needed */
@@ -104,7 +112,6 @@ export function sideNav(role: Role): NavItem[] {
 
 export const roleLabel: Record<Role, string> = {
   student: "طالب",
-  parent: "ولي أمر",
   teacher: "معلم",
   admin: "إدارة المدرسة",
 };
