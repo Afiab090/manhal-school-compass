@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import readXlsxFile from "read-excel-file/browser";
+import readXlsxFile from "read-excel-file/universal";
 
 export const MAX_IMPORT_ROWS = 2000;
 export const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
