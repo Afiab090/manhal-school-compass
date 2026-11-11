@@ -81,12 +81,14 @@ export function TeacherHome({ initialTab }: { initialTab?: string }) {
           icon={CalendarDays}
           tone={teacherSlots.length > 25 ? "warning" : undefined}
           hint="الحد الأقصى الموصى به: ٢٥ حصة"
+          to="/app/schedule"
         />
         <StatCard
           label="الفصول المسندة"
           value={`${assignedClasses.length} فصول`}
           icon={Layers}
           hint={t.subject}
+          to="/app/timetables"
         />
         <StatCard
           label={isToday ? "حصص اليوم" : "حصص الأحد القادم"}
@@ -94,12 +96,14 @@ export function TeacherHome({ initialTab }: { initialTab?: string }) {
           icon={Clock}
           tone="gold"
           hint={isToday ? "اليوم الدراسي" : "أول الأسبوع"}
+          to="/app/schedule"
         />
         <StatCard
           label="إجمالي الطلاب المسندين"
           value={s.students.filter((st) => t.classes?.includes(st.classId) && st.status !== "archived").length}
           icon={Users}
           hint="في فصولك"
+          to="/app/students"
         />
       </div>
 

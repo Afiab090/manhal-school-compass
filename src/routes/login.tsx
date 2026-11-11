@@ -1,6 +1,6 @@
 import { Navigate, createFileRoute } from "@tanstack/react-router";
 
-import { LoginPortal } from "@/components/school/LoginPortal";
+import { DemoQuickSwitcher, LoginPortal } from "@/components/school/LoginPortal";
 import { PublicLayout } from "@/components/school/PublicLayout";
 import { currentUser, useSchool } from "@/lib/school/store";
 
@@ -28,8 +28,9 @@ function LoginPage() {
     <PublicLayout>
       <section className="relative overflow-hidden bg-hero px-4 py-10 md:py-16">
         <div className="pattern-geo absolute inset-0 opacity-50" />
-        <div className="relative mx-auto max-w-lg">
+        <div className="relative mx-auto max-w-lg space-y-4">
           <LoginPortal />
+          <DemoQuickSwitcher />
         </div>
       </section>
     </PublicLayout>

@@ -193,12 +193,12 @@ function TimetablesManagementPage() {
         subtitle={`بناء وتوزيع ومراجعة الجداول الدراسية الأسبوعية ومنع التعارضات — ${currentStage}`}
         icon={CalendarDays}
         action={
-          <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <div className="flex flex-wrap items-center gap-2 print:hidden w-full sm:w-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={handlePrint}
-              className="gap-2 font-bold text-xs"
+              className="gap-2 font-bold text-xs flex-1 sm:flex-initial"
             >
               <Printer className="h-4 w-4" />
               طباعة / حفظ PDF
@@ -210,7 +210,7 @@ function TimetablesManagementPage() {
                 setSourceClassId(selectedClassId);
                 setCopyDialogOpen(true);
               }}
-              className="gap-2 font-bold text-xs"
+              className="gap-2 font-bold text-xs flex-1 sm:flex-initial"
             >
               <Copy className="h-4 w-4" />
               نسخ جدول فصل
@@ -219,7 +219,7 @@ function TimetablesManagementPage() {
               variant="outline"
               size="sm"
               onClick={() => setImportDialogOpen(true)}
-              className="gap-2 font-bold text-xs border-gold text-navy hover:bg-gold-soft"
+              className="gap-2 font-bold text-xs border-gold text-navy hover:bg-gold-soft flex-1 sm:flex-initial"
             >
               <FileSpreadsheet className="h-4 w-4 text-gold" />
               استيراد جدول

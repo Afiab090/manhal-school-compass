@@ -132,39 +132,68 @@ export function AdminHome({ initialTab }: { initialTab?: string }) {
       </div>
 
       {/* 2. STAGE-SCOPED KPI STATS */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <StatCard
-          label="فصول المرحلة"
-          value={stageClasses.length}
-          icon={Layers}
-          hint={currentStage}
-        />
-        <StatCard
-          label="الطلبة النشطون"
-          value={activeStageStudents.length}
-          icon={Users}
-          hint="طالب منتظم"
-        />
-        <StatCard
-          label="المعلمون النشطون"
-          value={activeStageTeachers.length}
-          icon={GraduationCap}
-          hint="هيئة التدريس"
-        />
-        <StatCard
-          label="نسبة تحصيل الرسوم"
-          value={`${financial.collectionRate}٪`}
-          icon={CheckCircle2}
-          tone="success"
-          hint={formatMoney(financial.totalCollected)}
-        />
-        <StatCard
-          label="المتبقي من الرسوم"
-          value={formatMoney(financial.totalRemaining)}
-          icon={AlertCircle}
-          tone={financial.totalRemaining === 0 ? "success" : "warning"}
-          hint={`من أصل ${formatMoney(financial.totalRequired)}`}
-        />
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard
+            label="فصول المرحلة"
+            value={stageClasses.length}
+            icon={Layers}
+            hint={currentStage}
+            to="/app/timetables"
+          />
+          <StatCard
+            label="الطلبة النشطون"
+            value={activeStageStudents.length}
+            icon={Users}
+            hint="طالب منتظم"
+            to="/app/students"
+          />
+          <StatCard
+            label="المعلمون النشطون"
+            value={activeStageTeachers.length}
+            icon={GraduationCap}
+            hint="هيئة التدريس"
+            to="/app/teachers"
+          />
+          <StatCard
+            label="نسبة تحصيل الرسوم"
+            value={`${financial.collectionRate}٪`}
+            icon={CheckCircle2}
+            tone="success"
+            hint={formatMoney(financial.totalCollected)}
+            to="/app/fees"
+          />
+        </div>
+
+        {/* 5th Card: Full-width Financial Highlight Banner */}
+        <Link
+          to="/app/fees"
+          className="group block rounded-2xl border border-border/80 bg-gradient-to-l from-gold/10 via-card to-card p-4 shadow-card transition-all hover:border-gold hover:shadow-elevated active:scale-[0.99]"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gold/15 text-gold-darker shadow-sm">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-muted-foreground">المتبقي من الرسوم الدراسية ({currentStage})</span>
+                  <span className="rounded-full bg-gold-soft px-2 py-0.5 text-[10px] font-bold text-navy">
+                    من أصل {formatMoney(financial.totalRequired)}
+                  </span>
+                </div>
+                <div className="text-xl font-extrabold text-foreground font-mono">
+                  {formatMoney(financial.totalRemaining)}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 self-end sm:self-center text-xs font-bold text-navy group-hover:text-gold transition-colors">
+              <span>عرض تفاصيل الرسوم وكشف السندات</span>
+              <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* 3. QUICK ACTIONS (7 links) */}

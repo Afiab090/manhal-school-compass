@@ -97,6 +97,7 @@ export function StudentHome({ initialTab }: { initialTab?: string }) {
           icon={UserCheck}
           tone="success"
           hint={`${att.present} حضور · ${att.absent} غياب`}
+          to="/app/attendance"
         />
         <StatCard
           label="سداد الرسوم الدراسية"
@@ -104,12 +105,14 @@ export function StudentHome({ initialTab }: { initialTab?: string }) {
           icon={Wallet}
           tone="gold"
           hint={`متبقي ${formatMoney(fees.remaining)}`}
+          to="/app/fees"
         />
         <StatCard
           label={isToday ? "حصص اليوم" : "حصص الأحد القادم"}
           value={`${todaySlots.length} حصص`}
           icon={Clock}
           hint={cls?.short ?? "الفصل"}
+          to="/app/schedule"
         />
         <StatCard
           label="الامتحان القادم"
@@ -117,6 +120,7 @@ export function StudentHome({ initialTab }: { initialTab?: string }) {
           icon={CalendarClock}
           tone={nextExam ? "gold" : undefined}
           hint={nextExam ? formatDate(nextExam.date) : "الجدول منتظم"}
+          to="/app/calendar"
         />
       </div>
 

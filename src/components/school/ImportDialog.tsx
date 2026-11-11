@@ -220,8 +220,8 @@ export function ImportDialog({
             )}
 
             {/* Preview Table */}
-            <div className="flex-1 overflow-auto rounded-2xl border bg-card">
-              <table className="w-full text-xs text-start">
+            <div className="flex-1 w-full overflow-auto rounded-2xl border bg-card">
+              <table className="w-full min-w-[500px] text-xs text-start">
                 <thead className="bg-muted/60 text-muted-foreground sticky top-0 border-b">
                   <tr>
                     <th className="p-2.5 text-center font-bold">#</th>

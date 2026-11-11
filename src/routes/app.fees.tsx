@@ -195,8 +195,8 @@ function StudentFeesView() {
         {studentPayments.length === 0 ? (
           <EmptyState icon={ReceiptIcon} title="لا توجد مدفوعات مسجلة حتى الآن" />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-start text-sm">
+          <div className="w-full overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[500px] text-start text-sm">
               <thead>
                 <tr className="border-b text-xs text-muted-foreground">
                   <th className="py-2.5 px-3 text-start">رقم الإيصال</th>
@@ -338,11 +338,11 @@ function AdminFeesView() {
         subtitle={`حصر الرسوم الدراسية ومتابعة التحصيل وإصدار سندات القبض — ${currentStage}`}
         icon={Wallet}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               onClick={() => downloadCsvTemplate("نموذج_استيراد_الرسوم.csv", FEES_TEMPLATE_HEADERS, FEES_SAMPLE_ROWS)}
-              className="gap-2 font-bold text-xs"
+              className="gap-2 font-bold text-xs flex-1 sm:flex-initial"
             >
               <Download className="h-4 w-4" />
               تحميل نموذج CSV
@@ -350,14 +350,14 @@ function AdminFeesView() {
             <Button
               variant="outline"
               onClick={() => setImportDialogOpen(true)}
-              className="gap-2 font-bold text-xs border-gold text-navy hover:bg-gold-soft"
+              className="gap-2 font-bold text-xs border-gold text-navy hover:bg-gold-soft flex-1 sm:flex-initial"
             >
               <FileSpreadsheet className="h-4 w-4 text-gold" />
               استيراد من Excel أو CSV
             </Button>
             <Button
               onClick={() => setRecordDialogOpen(true)}
-              className="gap-2 bg-primary hover:bg-navy font-bold text-xs"
+              className="gap-2 bg-primary hover:bg-navy font-bold text-xs w-full sm:w-auto"
             >
               <Plus className="h-4 w-4" />
               تسجيل سند قبض
@@ -438,8 +438,8 @@ function AdminFeesView() {
         {filteredStudents.length === 0 ? (
           <EmptyState icon={Search} title="لا توجد نتائج مطابقة" />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-start text-xs">
+          <div className="w-full overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[680px] text-start text-xs">
               <thead>
                 <tr className="border-b bg-muted/40 text-muted-foreground font-bold">
                   <th className="py-3 px-3 text-start">الرقم الأكاديمي</th>

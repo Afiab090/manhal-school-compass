@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { LucideIcon } from "lucide-react";
+import { ChevronLeft, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -17,26 +17,26 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-5 flex items-start justify-between gap-3">
-      <div className="flex items-center gap-3">
+    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between w-full">
+      <div className="flex items-center gap-3 min-w-0">
         {Icon && (
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gold-soft text-gold">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gold-soft text-gold">
             <Icon className="h-5 w-5" />
           </div>
         )}
-        <div>
-          <h1 className="font-display text-2xl font-bold leading-tight text-navy">{title}</h1>
-          {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl font-bold leading-tight text-navy truncate sm:overflow-visible sm:whitespace-normal">{title}</h1>
+          {subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
         </div>
       </div>
-      {action}
+      {action && <div className="w-full sm:w-auto shrink-0 flex flex-wrap gap-2">{action}</div>}
     </div>
   );
 }
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-3 mt-7 flex items-center justify-between">
+    <div className="mb-3 mt-7 flex flex-wrap items-center justify-between gap-2">
       <h2 className="font-display text-xl font-bold text-navy">{children}</h2>
       {action}
     </div>
@@ -53,12 +53,18 @@ export function StatCard({
   icon: Icon,
   tone = "navy",
   hint,
+  to,
+  onClick,
+  className,
 }: {
   label: string;
   value: ReactNode;
   icon: LucideIcon;
   tone?: "navy" | "gold" | "success" | "warning" | "danger" | undefined;
   hint?: string | undefined;
+  to?: AppPath | undefined;
+  onClick?: (() => void) | undefined;
+  className?: string | undefined;
 }) {
   const tones = {
     navy: "bg-secondary text-navy",
@@ -67,16 +73,48 @@ export function StatCard({
     warning: "bg-warning-soft text-warning",
     danger: "bg-danger-soft text-destructive",
   } as const;
-  return (
-    <div className="rounded-2xl border bg-card p-4 shadow-card">
-      <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-xl", tones[tone])}>
-        <Icon className="h-[18px] w-[18px]" />
+
+  const isClickable = Boolean(to || onClick);
+
+  const cardInner = (
+    <div
+      className={cn(
+        "rounded-2xl border bg-card p-4 shadow-card transition-all",
+        isClickable && "hover:border-gold hover:shadow-elevated active:scale-[0.98] group cursor-pointer",
+        className,
+      )}
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl", tones[tone])}>
+          <Icon className="h-[18px] w-[18px]" />
+        </div>
+        {isClickable && (
+          <ChevronLeft className="h-4 w-4 text-muted-foreground/50 transition-transform group-hover:-translate-x-1 group-hover:text-gold" />
+        )}
       </div>
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-0.5 text-lg font-extrabold text-foreground">{value}</div>
-      {hint && <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>}
+      {hint && <div className="mt-0.5 text-[11px] text-muted-foreground truncate">{hint}</div>}
     </div>
   );
+
+  if (to) {
+    return (
+      <Link to={to} className="block no-underline focus:outline-none">
+        {cardInner}
+      </Link>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className="block w-full text-start focus:outline-none">
+        {cardInner}
+      </button>
+    );
+  }
+
+  return cardInner;
 }
 
 export interface GridAction {

@@ -271,12 +271,12 @@ export function TeachersDirectory() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={handleExportCsv}
-            className="gap-2 text-xs font-bold"
+            className="gap-2 text-xs font-bold flex-1 sm:flex-initial"
           >
             <Download className="h-4 w-4" />
             تصدير CSV
@@ -285,7 +285,7 @@ export function TeachersDirectory() {
             variant="outline"
             size="sm"
             onClick={() => setImportDialogOpen(true)}
-            className="gap-2 text-xs font-bold border-gold text-navy hover:bg-gold-soft"
+            className="gap-2 text-xs font-bold border-gold text-navy hover:bg-gold-soft flex-1 sm:flex-initial"
           >
             <FileSpreadsheet className="h-4 w-4 text-gold" />
             استيراد معلمين
@@ -293,7 +293,7 @@ export function TeachersDirectory() {
           <Button
             size="sm"
             onClick={handleOpenAdd}
-            className="gap-2 bg-primary hover:bg-navy font-bold text-xs"
+            className="gap-2 bg-primary hover:bg-navy font-bold text-xs w-full sm:w-auto"
           >
             <Plus className="h-4 w-4" />
             إضافة معلم جديد
@@ -371,8 +371,8 @@ export function TeachersDirectory() {
       ) : (
         <>
           {/* Desktop Table */}
-          <div className="hidden md:block rounded-2xl border bg-card overflow-hidden shadow-card">
-            <table className="w-full text-start text-xs">
+          <div className="hidden md:block rounded-2xl border bg-card overflow-x-auto shadow-card">
+            <table className="w-full min-w-[700px] text-start text-xs">
               <thead className="bg-muted/50 border-b text-muted-foreground font-bold">
                 <tr>
                   <th className="py-3 px-3 text-start">الرقم الوظيفي</th>

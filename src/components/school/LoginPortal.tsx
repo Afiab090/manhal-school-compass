@@ -1,5 +1,16 @@
 import { useNavigate } from "@tanstack/react-router";
-import { GraduationCap, KeyRound, Layers, LogIn, ShieldCheck, UserRound, Users, Zap } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  GraduationCap,
+  KeyRound,
+  Layers,
+  LogIn,
+  ShieldCheck,
+  UserRound,
+  Users,
+  Zap,
+} from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
@@ -35,6 +46,7 @@ export function LoginPortal({ className }: { className?: string }) {
   const [stageId, setStageId] = useState<StageId>("المرحلة الثانوية");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -53,13 +65,6 @@ export function LoginPortal({ className }: { className?: string }) {
       return;
     }
     toast.success(`تم تسجيل الدخول بنجاح — مرحباً بك في ${stageId}`);
-    navigate({ to: "/app" });
-  }
-
-  function quick(r: Role) {
-    demoLogin(r, stageId);
-    const label = roles.find((x) => x.role === r)?.label ?? r;
-    toast.success(`مرحباً بك — دخول تجريبي (${label} - ${stageId})`);
     navigate({ to: "/app" });
   }
 
@@ -139,22 +144,31 @@ export function LoginPortal({ className }: { className?: string }) {
           </div>
         </Field>
 
-        {/* Password Input */}
+        {/* Password Input with Visibility Toggle */}
         <Field label="كلمة المرور">
           <div className="relative">
             <KeyRound className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               dir="ltr"
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
                 setError(null);
               }}
               placeholder="••••••"
-              className="h-11 bg-background ps-9 text-start"
+              className="h-11 bg-background ps-9 pe-11 text-start"
               autoComplete="current-password"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+              aria-label={showPassword ? "إخفاء كلمة المرور" : "عرض كلمة المرور"}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
         </Field>
 
@@ -168,46 +182,87 @@ export function LoginPortal({ className }: { className?: string }) {
           <LogIn className="h-4 w-4 ms-2" />
           تسجيل الدخول
         </Button>
-
-        {DEMO_MODE && (
-          <button
-            type="button"
-            onClick={() => {
-              setIdentifier(currentDemoId);
-              setPassword(DEMO.password);
-              setError(null);
-            }}
-            className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:text-navy hover:underline"
-          >
-            تعبئة بيانات تجريبية: <span dir="ltr" className="font-mono">{currentDemoId}</span> / <span dir="ltr" className="font-mono">{DEMO.password}</span>
-          </button>
-        )}
       </form>
+    </div>
+  );
+}
 
-      {DEMO_MODE && (
-        <>
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            دخول سريع للتجربة في ({stageId})
-            <span className="h-px flex-1 bg-border" />
-          </div>
+/**
+ * Standalone demo switcher isolated outside the primary login card.
+ * Rendered only when DEMO_MODE is true.
+ */
+export function DemoQuickSwitcher({ className }: { className?: string }) {
+  const [stageId, setStageId] = useState<StageId>("المرحلة الثانوية");
+  const navigate = useNavigate();
 
-          <div className="grid grid-cols-3 gap-2">
-            <Button variant="gold" onClick={() => quick("student")}>
-              <Zap className="h-3.5 w-3.5" />
-              طالب
-            </Button>
-            <Button variant="soft" onClick={() => quick("teacher")}>
-              <Zap className="h-3.5 w-3.5" />
-              معلم
-            </Button>
-            <Button variant="soft" onClick={() => quick("admin")}>
-              <Zap className="h-3.5 w-3.5" />
-              مدير
-            </Button>
-          </div>
-        </>
+  if (!DEMO_MODE) return null;
+
+  function quick(r: Role) {
+    demoLogin(r, stageId);
+    const label = roles.find((x) => x.role === r)?.label ?? r;
+    toast.success(`مرحباً بك — دخول تجريبي (${label} - ${stageId})`);
+    navigate({ to: "/app" });
+  }
+
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border border-dashed border-gold/40 bg-card/90 p-4 shadow-sm backdrop-blur-sm",
+        className,
       )}
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-gold/20 text-gold-darker">
+            <Zap className="h-3.5 w-3.5" />
+          </div>
+          <span className="text-xs font-bold text-navy">دخول سريع للتجربة (Demo Mode)</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span>المرحلة:</span>
+          <select
+            value={stageId}
+            onChange={(e) => setStageId(e.target.value as StageId)}
+            className="h-7 rounded-lg border border-input bg-background px-2 text-xs font-semibold text-foreground focus:outline-none"
+          >
+            {academicStages.map((stg) => (
+              <option key={stg.id} value={stg.id}>
+                {stg.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant="gold"
+          size="sm"
+          onClick={() => quick("student")}
+          className="text-xs font-bold gap-1.5 h-8"
+        >
+          <Zap className="h-3 w-3" />
+          طالب
+        </Button>
+        <Button
+          variant="soft"
+          size="sm"
+          onClick={() => quick("teacher")}
+          className="text-xs font-bold gap-1.5 h-8"
+        >
+          <Zap className="h-3 w-3" />
+          معلم
+        </Button>
+        <Button
+          variant="soft"
+          size="sm"
+          onClick={() => quick("admin")}
+          className="text-xs font-bold gap-1.5 h-8"
+        >
+          <Zap className="h-3 w-3" />
+          مدير
+        </Button>
+      </div>
     </div>
   );
 }

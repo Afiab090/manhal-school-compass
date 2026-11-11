@@ -93,8 +93,8 @@ export function StudentReportCard({
 
       {/* Main Table */}
       <div className="overflow-hidden rounded-2xl border bg-card shadow-card">
-        <div className="overflow-x-auto">
-          <table className="w-full text-start text-sm">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full min-w-[650px] text-start text-sm">
             <thead className="bg-muted/50 border-b text-xs text-muted-foreground font-bold">
               <tr>
                 <th className="py-3 px-4 text-start">المادة الدراسية</th>
@@ -350,8 +350,8 @@ export function TeacherGradebookSection({
 
       {/* Roster Table */}
       <div className="overflow-hidden rounded-2xl border bg-card shadow-card">
-        <div className="overflow-x-auto">
-          <table className="w-full text-start text-sm">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full min-w-[650px] text-start text-sm">
             <thead className="bg-muted/50 border-b text-xs text-muted-foreground font-bold">
               <tr>
                 <th className="py-3 px-4 text-start">الطالب والرقم الأكاديمي</th>

@@ -1,6 +1,6 @@
 import { Navigate, createFileRoute } from "@tanstack/react-router";
 
-import { LoginPortal } from "@/components/school/LoginPortal";
+import { DemoQuickSwitcher, LoginPortal } from "@/components/school/LoginPortal";
 import { PublicLayout } from "@/components/school/PublicLayout";
 import {
   ContactCards,
@@ -71,8 +71,9 @@ function Index() {
             </div>
 
             {/* Right Column: Prominent Login Portal Card */}
-            <div className="lg:col-span-7">
+            <div className="lg:col-span-7 space-y-4">
               <LoginPortal />
+              <DemoQuickSwitcher />
             </div>
           </div>
         </div>

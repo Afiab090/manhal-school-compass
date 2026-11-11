@@ -106,8 +106,8 @@ function StudentAttendance({ studentId, customStudentName }: { studentId: string
         {records.length === 0 ? (
           <EmptyState icon={CalendarDays} title="لا توجد سجلات حضور مسجلة حالياً" />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-start text-sm">
+          <div className="w-full overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[500px] text-start text-sm">
               <thead>
                 <tr className="border-b text-xs text-muted-foreground">
                   <th className="py-2.5 px-3 text-start">التاريخ</th>
